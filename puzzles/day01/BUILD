@@ -7,3 +7,11 @@ cc_binary(
         "//util:io",
     ],
 )
+
+cc_binary(
+    name = "part2",
+    srcs = ["part2.cc"],
+    deps = [
+        "//util:io",
+    ],
+)
