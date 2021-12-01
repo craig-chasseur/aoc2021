@@ -32,7 +32,7 @@
 *.app
 
 # Bazel Outputs
-/bazel-aoc2020
+/bazel-aoc2021
 /bazel-bin
 /bazel-out
 /bazel-testlogs
