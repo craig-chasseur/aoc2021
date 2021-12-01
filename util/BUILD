@@ -6,3 +6,13 @@ cc_library(
     name = "check",
     hdrs = ["check.h"],
 )
+
+cc_library(
+    name = "io",
+    srcs = ["io.cc"],
+    hdrs = ["io.h"],
+    deps = [
+        ":check",
+        "@com_google_absl//absl/strings",
+    ],
+)
