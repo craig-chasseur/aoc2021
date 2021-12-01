@@ -30,3 +30,9 @@
 *.exe
 *.out
 *.app
+
+# Bazel Outputs
+/bazel-aoc2020
+/bazel-bin
+/bazel-out
+/bazel-testlogs
