@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "absl/strings/numbers.h"
+#include "absl/strings/string_view.h"
 #include "util/check.h"
 
 namespace aoc2021 {
@@ -24,6 +25,33 @@ std::vector<IntType> ParseIntegers(const std::vector<std::string>& strings) {
   std::vector<IntType> integers(strings.size(), 0);
   for (std::size_t idx = 0; idx < strings.size(); ++idx) {
     CHECK(absl::SimpleAtoi(strings[idx], &(integers[idx])));
+  }
+  return integers;
+}
+
+template <typename IntType = int>
+IntType ParseBinary(const absl::string_view str) {
+  IntType parsed = 0;
+  for (const char c : str) {
+    parsed <<= 1;
+    switch (c) {
+      case '0':
+        break;
+      case '1':
+        parsed |= 1;
+        break;
+      default:
+        CHECK_FAIL();
+    }
+  }
+  return parsed;
+}
+
+template <typename IntType = int>
+std::vector<IntType> ParseMultiBinary(const std::vector<std::string>& strings) {
+  std::vector<IntType> integers(strings.size(), 0);
+  for (std::size_t idx = 0; idx < strings.size(); ++idx) {
+    integers[idx] = ParseBinary<IntType>(strings[idx]);
   }
   return integers;
 }

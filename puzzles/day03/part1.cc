@@ -2,7 +2,6 @@
 #include <string>
 #include <vector>
 
-#include "absl/strings/numbers.h"
 #include "util/check.h"
 #include "util/io.h"
 
@@ -21,12 +20,7 @@ bool GammaBit(const std::vector<int>& numbers, int pos) {
 
 int main(int argc, char** argv) {
   std::vector<std::string> lines = aoc2021::ReadLinesFromFile(argv[1]);
-  std::vector<int> numbers;
-  for (const std::string& line : lines) {
-    int value = 0;
-    CHECK(absl::numbers_internal::safe_strto32_base(line, &value, 2));
-    numbers.push_back(value);
-  }
+  std::vector<int> numbers = aoc2021::ParseMultiBinary(lines);
 
   int gamma = 0;
   for (int pos = 0; pos < 12; ++pos) {

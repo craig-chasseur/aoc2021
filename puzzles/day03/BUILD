@@ -6,7 +6,6 @@ cc_binary(
     deps = [
         "//util:check",
         "//util:io",
-        "@com_google_absl//absl/strings",
     ],
 )
 
@@ -16,6 +15,5 @@ cc_binary(
     deps = [
         "//util:check",
         "//util:io",
-        "@com_google_absl//absl/strings",
     ],
 )
