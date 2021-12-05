@@ -10,3 +10,14 @@ cc_binary(
         "@com_googlesource_code_re2//:re2",
     ],
 )
+
+cc_binary(
+    name = "part2",
+    srcs = ["part2.cc"],
+    deps = [
+        "//util:check",
+        "//util:io",
+        "@com_google_absl//absl/strings",
+        "@com_googlesource_code_re2//:re2",
+    ],
+)
