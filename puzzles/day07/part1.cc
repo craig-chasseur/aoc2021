@@ -38,7 +38,8 @@ int main(int argc, char** argv) {
   const int64_t max_pos = *std::max_element(positions.begin(), positions.end());
   int64_t min_fuel = std::numeric_limits<int64_t>::max();
   int64_t target = 0;
-  for (int64_t candidate_target = min_pos; candidate_target <= max_pos; ++candidate_target) {
+  for (int64_t candidate_target = min_pos; candidate_target <= max_pos;
+       ++candidate_target) {
     const int64_t fuel = FuelForTarget(positions, candidate_target);
     if (fuel < min_fuel) {
       min_fuel = fuel;
