@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <array>
 #include <bit>
+#include <bitset>
 #include <cstdint>
 #include <iostream>
 #include <string>
@@ -96,95 +97,75 @@ class Display {
   }
 
   int Solve() const {
-    Signal sig_1, sig_4, sig_7, sig_8;
-    int found = 0;
+    std::array<Signal, 10> known_signals;
+    std::bitset<10> known;
+    std::vector<Signal> seg5, seg6;
     for (const Signal& pattern : all_patterns_) {
       switch (pattern.ActiveSegments()) {
         case 2:
-          sig_1 = pattern;
-          ++found;
+          known_signals[1] = pattern;
+          known.set(1);
           break;
         case 3:
-          sig_7 = pattern;
-          ++found;
+          known_signals[7] = pattern;
+          known.set(7);
           break;
         case 4:
-          sig_4 = pattern;
-          ++found;
+          known_signals[4] = pattern;
+          known.set(4);
+          break;
+        case 5:
+          seg5.push_back(pattern);
+          break;
+        case 6:
+          seg6.push_back(pattern);
           break;
         case 7:
-          sig_8 = pattern;
-          ++found;
+          known_signals[8] = pattern;
+          known.set(8);
           break;
         default:
           break;
       }
     }
-    CHECK(found = 4);
+    CHECK(known.count() == 4);
+    CHECK(seg5.size() == 3);
+    CHECK(seg6.size() == 3);
 
-    Signal sig_a = sig_7 - sig_1;
-    Signal sig_bd = sig_4 - sig_1;
-    Signal sig_abd = sig_a + sig_bd;
-    Signal sig_abcdf = sig_abd + sig_1;
-
-    Signal sig_9;
-    found = 0;
-    for (const Signal& pattern : all_patterns_) {
-      if (pattern.Contains(sig_abcdf) && pattern != sig_8) {
-        sig_9 = pattern;
-        ++found;
-        break;
+    const Signal sig_abcdf = known_signals[4] + known_signals[7];
+    for (const Signal& pattern : seg6) {
+      if (pattern.Contains(sig_abcdf)) {
+        known_signals[9] = pattern;
+        known.set(9);
+      } else if (pattern.Contains(known_signals[1])) {
+        known_signals[0] = pattern;
+        known.set(0);
+      } else {
+        known_signals[6] = pattern;
+        known.set(6);
       }
     }
-    CHECK(found == 1);
-    Signal sig_e = sig_8 - sig_9;
+    CHECK(known.count() == 7);
 
-    Signal sig_6, sig_0;
-    found = 0;
-    for (const Signal& pattern : all_patterns_) {
-      if (pattern != sig_9 && pattern.ActiveSegments() == 6) {
-        if (pattern.Contains(sig_1)) {
-          sig_0 = pattern;
-        } else {
-          sig_6 = pattern;
-        }
-        ++found;
+    const Signal sig_c = known_signals[8] - known_signals[6];
+    for (const Signal& pattern : seg5) {
+      if (pattern.Contains(known_signals[1])) {
+        known_signals[3] = pattern;
+        known.set(3);
+      } else if (pattern.Contains(sig_c)) {
+        known_signals[2] = pattern;
+        known.set(2);
+      } else {
+        known_signals[5] = pattern;
+        known.set(5);
       }
     }
-    CHECK(found == 2);
-    Signal sig_c = sig_8 - sig_6;
-    Signal sig_d = sig_8 - sig_0;
-    Signal sig_f = sig_1 - sig_c;
+    CHECK(known.count() == 10);
 
-    Signal sig_2, sig_3, sig_5;
-    found = 0;
-    for (const Signal& pattern : all_patterns_) {
-      if (pattern.ActiveSegments() == 5) {
-        if (pattern.Contains(sig_1)) {
-          sig_3 = pattern;
-        } else if (pattern.Contains(sig_c)) {
-          sig_2 = pattern;
-        } else {
-          CHECK(pattern.Contains(sig_f));
-          sig_5 = pattern;
-        }
-        ++found;
-      }
+    absl::flat_hash_map<Signal, int> lookup_table;
+    for (int i = 0; i < 10; ++i) {
+      lookup_table[known_signals[i]] = i;
     }
-    CHECK(found == 3);
-
-    const absl::flat_hash_map<Signal, int> lookup_table {
-      {sig_0, 0},
-      {sig_1, 1},
-      {sig_2, 2},
-      {sig_3, 3},
-      {sig_4, 4},
-      {sig_5, 5},
-      {sig_6, 6},
-      {sig_7, 7},
-      {sig_8, 8},
-      {sig_9, 9},
-    };
 
     int display_value = 0;
     for (const Signal& output_signal : outputs_) {
