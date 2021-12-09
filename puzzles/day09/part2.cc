@@ -1,11 +1,12 @@
-#include <algorithm>
 #include <cstdint>
 #include <functional>
+#include <numeric>
 #include <string>
 #include <utility>
 #include <vector>
 
 #include "absl/container/flat_hash_set.h"
+#include "absl/container/inlined_vector.h"
 #include "util/check.h"
 #include "util/io.h"
 
@@ -29,8 +30,8 @@ class HeightMap {
     int64_t total_risk = 0;
     for (int x = 0; x < heights_.size(); ++x) {
       for (int y = 0; y < heights_[x].size(); ++y) {
-        if (IsLowPoint(x, y)) {
-          total_risk += heights_[x][y] + 1;
+        if (IsLowPoint({x, y})) {
+          total_risk += HeightAt({x, y}) + 1;
         }
       }
     }
@@ -38,66 +39,63 @@ class HeightMap {
   }
 
   int Top3BasinSizeProduct() const {
-    std::vector<int> basin_sizes;
+    std::array<int, 3> top_3_basins{-1, -1, -1};
     for (int x = 0; x < heights_.size(); ++x) {
       for (int y = 0; y < heights_[x].size(); ++y) {
-        if (IsLowPoint(x, y)) {
-          basin_sizes.emplace_back(BasinSize(x, y));
+        if (IsLowPoint({x, y})) {
+          const int basin_size = BasinSize({x, y});
+          auto min_basin_it =
+              std::min_element(top_3_basins.begin(), top_3_basins.end());
+          if ((basin_size) > *min_basin_it) *min_basin_it = basin_size;
         }
       }
     }
-    CHECK(basin_sizes.size() >= 3);
-    std::partial_sort(basin_sizes.begin(), basin_sizes.begin() + 3,
-                      basin_sizes.end(), std::greater<int>());
-    return basin_sizes[0] * basin_sizes[1] * basin_sizes[2];
+    return std::accumulate(top_3_basins.begin(), top_3_basins.end(), 1,
+                           std::multiplies<int>());
   }
 
  private:
-  bool IsLowPoint(const int x, const int y) const {
-    const int height = heights_[x][y];
-    if (x > 0 && height >= heights_[x - 1][y]) return false;
-    if (x < heights_.size() - 1 && height >= heights_[x + 1][y]) return false;
-    if (y > 0 && height >= heights_[x][y - 1]) return false;
-    if (y < heights_[x].size() - 1 && height >= heights_[x][y + 1])
-      return false;
+  using Coords = std::pair<int, int>;
+
+  int HeightAt(const Coords coords) const {
+    return heights_[coords.first][coords.second];
+  }
+
+  absl::InlinedVector<Coords, 4> AdjacentCells(const Coords coords) const {
+    absl::InlinedVector<Coords, 4> cells;
+    if (coords.first > 0) cells.emplace_back(coords.first - 1, coords.second);
+    if (coords.first < heights_.size() - 1)
+      cells.emplace_back(coords.first + 1, coords.second);
+    if (coords.second > 0) cells.emplace_back(coords.first, coords.second - 1);
+    if (coords.second < heights_.size() - 1)
+      cells.emplace_back(coords.first, coords.second + 1);
+    return cells;
+  }
+
+  bool IsLowPoint(const Coords coords) const {
+    const int height = HeightAt(coords);
+    for (const Coords adjacent : AdjacentCells(coords)) {
+      if (height >= HeightAt(adjacent)) return false;
+    }
     return true;
   }
 
-  int BasinSize(const int x, const int y) const {
+  int BasinSize(Coords low_point) const {
     absl::flat_hash_set<std::pair<int, int>> basin;
-    absl::flat_hash_set<std::pair<int, int>> frontier{{x, y}};
+    absl::flat_hash_set<std::pair<int, int>> frontier{low_point};
     while (!frontier.empty()) {
+      basin.insert(frontier.begin(), frontier.end());
       absl::flat_hash_set<std::pair<int, int>> new_frontier;
-      for (const std::pair<int, int>& cell : frontier) {
-        basin.insert(cell);
-        AddAdjacentCellsToSet(cell, new_frontier);
+      for (const Coords cell : frontier) {
+        for (const Coords adjacent : AdjacentCells(cell)) {
+          if (HeightAt(adjacent) != 9 && !basin.contains(adjacent)) {
+            new_frontier.insert(adjacent);
+          }
+        }
       }
-
-      frontier.clear();
-      for (const std::pair<int, int>& cell : new_frontier) {
-        if (!basin.contains(cell)) frontier.insert(cell);
-      }
+      frontier = std::move(new_frontier);
     }
     return basin.size();
-  }
-
-  void AddAdjacentCellsToSet(
-      std::pair<int, int> coords,
-      absl::flat_hash_set<std::pair<int, int>>& set) const {
-    if (coords.first > 0 && heights_[coords.first - 1][coords.second] != 9) {
-      set.emplace(coords.first - 1, coords.second);
-    }
-    if (coords.first < heights_.size() - 1 &&
-        heights_[coords.first + 1][coords.second] != 9) {
-      set.emplace(coords.first + 1, coords.second);
-    }
-    if (coords.second > 0 && heights_[coords.first][coords.second - 1] != 9) {
-      set.emplace(coords.first, coords.second - 1);
-    }
-    if (coords.second < heights_[coords.first].size() - 1 &&
-        heights_[coords.first][coords.second + 1] != 9) {
-      set.emplace(coords.first, coords.second + 1);
-    }
   }
 
   std::vector<std::vector<int>> heights_;
