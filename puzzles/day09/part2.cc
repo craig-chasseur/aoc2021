@@ -1,3 +1,4 @@
+#include <array>
 #include <cstdint>
 #include <functional>
 #include <numeric>
@@ -81,11 +82,11 @@ class HeightMap {
   }
 
   int BasinSize(Coords low_point) const {
-    absl::flat_hash_set<std::pair<int, int>> basin;
-    absl::flat_hash_set<std::pair<int, int>> frontier{low_point};
+    absl::flat_hash_set<Coords> basin;
+    absl::flat_hash_set<Coords> frontier{low_point};
     while (!frontier.empty()) {
       basin.insert(frontier.begin(), frontier.end());
-      absl::flat_hash_set<std::pair<int, int>> new_frontier;
+      absl::flat_hash_set<Coords> new_frontier;
       for (const Coords cell : frontier) {
         for (const Coords adjacent : AdjacentCells(cell)) {
           if (HeightAt(adjacent) != 9 && !basin.contains(adjacent)) {
