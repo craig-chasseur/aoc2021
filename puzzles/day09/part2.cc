@@ -7,48 +7,25 @@
 #include <vector>
 
 #include "absl/container/flat_hash_set.h"
-#include "absl/container/inlined_vector.h"
 #include "util/check.h"
+#include "util/grid2.h"
 #include "util/io.h"
 
 namespace {
 
 class HeightMap {
  public:
-  explicit HeightMap(const std::vector<std::string>& lines) {
-    for (const std::string& line : lines) {
-      heights_.emplace_back();
-      for (const char c : line) {
-        const int height = c - '0';
-        CHECK(height >= 0);
-        CHECK(height <= 9);
-        heights_.back().emplace_back(height);
-      }
-    }
-  }
-
-  int TotalRisk() const {
-    int64_t total_risk = 0;
-    for (int x = 0; x < heights_.size(); ++x) {
-      for (int y = 0; y < heights_[x].size(); ++y) {
-        if (IsLowPoint({x, y})) {
-          total_risk += HeightAt({x, y}) + 1;
-        }
-      }
-    }
-    return total_risk;
-  }
+  explicit HeightMap(const std::vector<std::string>& lines)
+      : heights_(aoc2021::grid2::Grid<int>::ReadFromDigits(lines)) {}
 
   int Top3BasinSizeProduct() const {
     std::array<int, 3> top_3_basins{-1, -1, -1};
-    for (int x = 0; x < heights_.size(); ++x) {
-      for (int y = 0; y < heights_[x].size(); ++y) {
-        if (IsLowPoint({x, y})) {
-          const int basin_size = BasinSize({x, y});
-          auto min_basin_it =
-              std::min_element(top_3_basins.begin(), top_3_basins.end());
-          if ((basin_size) > *min_basin_it) *min_basin_it = basin_size;
-        }
+    for (const aoc2021::grid2::Point point : heights_.Points()) {
+      if (IsLowPoint(point)) {
+        const int basin_size = BasinSize(point);
+        auto min_basin_it =
+            std::min_element(top_3_basins.begin(), top_3_basins.end());
+        if ((basin_size) > *min_basin_it) *min_basin_it = basin_size;
       }
     }
     return std::accumulate(top_3_basins.begin(), top_3_basins.end(), 1,
@@ -56,40 +33,25 @@ class HeightMap {
   }
 
  private:
-  using Coords = std::pair<int, int>;
-
-  int HeightAt(const Coords coords) const {
-    return heights_[coords.first][coords.second];
-  }
-
-  absl::InlinedVector<Coords, 4> AdjacentCells(const Coords coords) const {
-    absl::InlinedVector<Coords, 4> cells;
-    if (coords.first > 0) cells.emplace_back(coords.first - 1, coords.second);
-    if (coords.first < heights_.size() - 1)
-      cells.emplace_back(coords.first + 1, coords.second);
-    if (coords.second > 0) cells.emplace_back(coords.first, coords.second - 1);
-    if (coords.second < heights_.size() - 1)
-      cells.emplace_back(coords.first, coords.second + 1);
-    return cells;
-  }
-
-  bool IsLowPoint(const Coords coords) const {
-    const int height = HeightAt(coords);
-    for (const Coords adjacent : AdjacentCells(coords)) {
-      if (height >= HeightAt(adjacent)) return false;
+  bool IsLowPoint(const aoc2021::grid2::Point point) const {
+    const int height = heights_[point];
+    for (const aoc2021::grid2::Point adjacent :
+         heights_.AdjacentCardinal(point)) {
+      if (height >= heights_[adjacent]) return false;
     }
     return true;
   }
 
-  int BasinSize(Coords low_point) const {
-    absl::flat_hash_set<Coords> basin;
-    absl::flat_hash_set<Coords> frontier{low_point};
+  int BasinSize(aoc2021::grid2::Point low_point) const {
+    absl::flat_hash_set<aoc2021::grid2::Point> basin;
+    absl::flat_hash_set<aoc2021::grid2::Point> frontier{low_point};
     while (!frontier.empty()) {
       basin.insert(frontier.begin(), frontier.end());
-      absl::flat_hash_set<Coords> new_frontier;
-      for (const Coords cell : frontier) {
-        for (const Coords adjacent : AdjacentCells(cell)) {
-          if (HeightAt(adjacent) != 9 && !basin.contains(adjacent)) {
+      absl::flat_hash_set<aoc2021::grid2::Point> new_frontier;
+      for (const aoc2021::grid2::Point cell : frontier) {
+        for (const aoc2021::grid2::Point adjacent :
+             heights_.AdjacentCardinal(cell)) {
+          if (heights_[adjacent] != 9 && !basin.contains(adjacent)) {
             new_frontier.insert(adjacent);
           }
         }
@@ -99,7 +61,7 @@ class HeightMap {
     return basin.size();
   }
 
-  std::vector<std::vector<int>> heights_;
+  aoc2021::grid2::Grid<int> heights_;
 };
 
 }  // namespace
