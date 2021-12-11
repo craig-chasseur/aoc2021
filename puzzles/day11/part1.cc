@@ -15,7 +15,8 @@ constexpr bool kPart2 = true;
 
 class OctoMap {
  public:
-  explicit OctoMap(const std::vector<std::string>& lines) : octopi_(aoc2021::grid2::Grid<int>::ReadFromDigits(lines)) {}
+  explicit OctoMap(const std::vector<std::string>& lines)
+      : octopi_(aoc2021::grid2::Grid<int>::ReadFromDigits(lines)) {}
 
   int Simulate(const int steps) {
     int total_flashes = 0;
@@ -44,7 +45,8 @@ class OctoMap {
       ++total_flashes;
       aoc2021::grid2::Point flasher = pending_flashers.front();
       pending_flashers.pop();
-      for (aoc2021::grid2::Point adjacent : octopi_.AdjacentWithDiagonal(flasher)) {
+      for (aoc2021::grid2::Point adjacent :
+           octopi_.AdjacentWithDiagonal(flasher)) {
         if (++octopi_[adjacent] == 10) pending_flashers.emplace(adjacent);
       }
     }
