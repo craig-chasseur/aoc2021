@@ -8,6 +8,11 @@ cc_library(
 )
 
 cc_library(
+    name = "grid2",
+    hdrs = ["grid2.h"],
+)
+
+cc_library(
     name = "io",
     srcs = ["io.cc"],
     hdrs = ["io.h"],
