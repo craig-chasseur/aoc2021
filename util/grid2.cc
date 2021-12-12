@@ -7,11 +7,11 @@
 namespace aoc2021::grid2 {
 
 std::vector<Point> Point::AdjacentCardinal() const {
-  return PlusVecs(Vecs::kCardinal);
+  return *this + Vecs::kCardinal;
 }
 
 std::vector<Point> Point::AdjacentWithDiagonal() const {
-  return PlusVecs(Vecs::kAdjacent8);
+  return *this + Vecs::kAdjacent8;
 }
 
 Vec Vec::UnitStep() const {

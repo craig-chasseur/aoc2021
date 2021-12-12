@@ -9,6 +9,7 @@
 #include <cstdlib>
 #include <iterator>
 #include <string>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -34,9 +35,6 @@ struct Point {
   Point& operator+=(const Vec& vec);
   Point& operator-=(const Vec& vec);
 
-  template <typename VecContainer>
-  std::vector<Point> PlusVecs(const VecContainer& vecs) const;
-
   std::vector<Point> AdjacentCardinal() const;
   std::vector<Point> AdjacentWithDiagonal() const;
 
@@ -53,7 +51,6 @@ class Points {
 
   inline static constexpr Point kOrigin{.x = 0, .y = 0};
 };
-
 
 // Two-dimensional vector. Can represent the difference between Points, and can
 // be added to a Point to yield another point.
@@ -165,11 +162,12 @@ inline Point operator+(const Point& p, const Vec& v) {
 inline Point operator-(const Point& p, const Vec& v) { return p + (-v); }
 
 template <typename VecContainer>
-std::vector<Point> Point::PlusVecs(const VecContainer &vecs) const {
+std::enable_if_t<std::is_same_v<Vec, typename VecContainer::value_type>,
+                 std::vector<Point>>
+operator+(const Point& p, const VecContainer& vecs) {
   std::vector<Point> result;
-  result.reserve(vecs.size());
-  for (const Vec& vec : vecs) {
-    result.emplace_back(*this + vec);
+  for (const Vec& v : vecs) {
+    result.emplace_back(p + v);
   }
   return result;
 }
@@ -302,13 +300,9 @@ class Grid {
     using iterator = PointIterator;
     using const_iterator = PointIterator;
 
-    const_iterator cbegin() const {
-      return grid_->point_begin();
-    }
+    const_iterator cbegin() const { return grid_->point_begin(); }
 
-    const_iterator cend() const {
-      return grid_->point_end();
-    }
+    const_iterator cend() const { return grid_->point_end(); }
 
     const_iterator begin() const { return cbegin(); }
     const_iterator end() const { return cend(); }
@@ -379,9 +373,7 @@ class Grid {
 
   // Returns a view of all the points in the Grid. Can be useful for iterating
   // over all grid points.
-  PointView Points() const {
-    return PointView(this);
-  }
+  PointView Points() const { return PointView(this); }
 
   // Iterators over values held in cells.
   iterator begin() {
