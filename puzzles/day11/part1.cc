@@ -46,7 +46,7 @@ class OctoMap {
       aoc2021::grid2::Point flasher = pending_flashers.front();
       pending_flashers.pop();
       for (aoc2021::grid2::Point adjacent :
-           octopi_.AdjacentWithDiagonal(flasher)) {
+           octopi_.FilterInRange(flasher.AdjacentWithDiagonal())) {
         if (++octopi_[adjacent] == 10) pending_flashers.emplace(adjacent);
       }
     }

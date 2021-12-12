@@ -25,7 +25,7 @@ class HeightMap {
   bool IsLowPoint(const aoc2021::grid2::Point point) const {
     const int height = heights_[point];
     for (const aoc2021::grid2::Point adjacent :
-         heights_.AdjacentCardinal(point)) {
+         heights_.FilterInRange(point.AdjacentCardinal())) {
       if (height >= heights_[adjacent]) return false;
     }
     return true;

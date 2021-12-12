@@ -9,7 +9,11 @@ cc_library(
 
 cc_library(
     name = "grid2",
+    srcs = ["grid2.cc"],
     hdrs = ["grid2.h"],
+    deps = [
+        ":check",
+    ],
 )
 
 cc_library(

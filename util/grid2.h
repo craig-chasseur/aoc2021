@@ -34,6 +34,12 @@ struct Point {
   Point& operator+=(const Vec& vec);
   Point& operator-=(const Vec& vec);
 
+  template <typename VecContainer>
+  std::vector<Point> PlusVecs(const VecContainer& vecs) const;
+
+  std::vector<Point> AdjacentCardinal() const;
+  std::vector<Point> AdjacentWithDiagonal() const;
+
   template <typename H>
   friend H AbslHashValue(H h, const Point& point) {
     return H::combine(std::move(h), point.x, point.y);
@@ -89,6 +95,8 @@ struct Vec {
     return result;
   }
 
+  int64_t ManhattanDistance() const { return std::abs(dx) + std::abs(dy); }
+
   double Magnitude() const { return std::sqrt(dx * dx + dy * dy); }
 
   bool Horizontal() const { return dy == 0; }
@@ -99,28 +107,7 @@ struct Vec {
 
   // Iff Vec is horizontal, vertical, or a 45-degree diagonal, this gives a
   // unit-step in the direction of the vector.
-  Vec UnitStep() const {
-    CHECK(Horizontal() || Vertical() || Diag45());
-    Vec step;
-
-    if (dx < 0) {
-      step.dx = -1;
-    } else if (dx == 0) {
-      step.dx = 0;
-    } else {
-      step.dx = 1;
-    }
-
-    if (dy < 0) {
-      step.dy = -1;
-    } else if (dy == 0) {
-      step.dy = 0;
-    } else {
-      step.dy = 1;
-    }
-
-    return step;
-  }
+  Vec UnitStep() const;
 
   template <typename H>
   friend H AbslHashValue(H h, const Vec& vec) {
@@ -176,6 +163,16 @@ inline Point operator+(const Point& p, const Vec& v) {
 }
 
 inline Point operator-(const Point& p, const Vec& v) { return p + (-v); }
+
+template <typename VecContainer>
+std::vector<Point> Point::PlusVecs(const VecContainer &vecs) const {
+  std::vector<Point> result;
+  result.reserve(vecs.size());
+  for (const Vec& vec : vecs) {
+    result.emplace_back(*this + vec);
+  }
+  return result;
+}
 
 // A dense two-dimensional grid of 'T' values. Cells are addressable as points.
 template <typename T = int>
@@ -359,6 +356,15 @@ class Grid {
            point.y < values_[point.x].size();
   }
 
+  template <typename PointContainer>
+  std::vector<Point> FilterInRange(const PointContainer& points) const {
+    std::vector<Point> filtered;
+    for (const Point& point : points) {
+      if (InRange(point)) filtered.emplace_back(point);
+    }
+    return filtered;
+  }
+
   // Accesses the value held in the cell at `point`.
   T& operator[](const Point& point) {
     CHECK(InRange(point));
@@ -375,31 +381,6 @@ class Grid {
   // over all grid points.
   PointView Points() const {
     return PointView(this);
-  }
-
-  // Returns the subset of the points obtained by adding each element of
-  // `deltas` to `point` that are in-range of the Grid.
-  template <typename VecContainer>
-  std::vector<Point> PointsInRange(const Point& point,
-                                   const VecContainer& deltas) const {
-    std::vector<Point> inrange;
-    for (const Vec& delta : deltas) {
-      Point result = point + delta;
-      if (InRange(result)) inrange.emplace_back(std::move(result));
-    }
-    return inrange;
-  }
-
-  // Returns in-range Points on the grid that are adjacent to `point` in one of
-  // the 4 cardinal directions.
-  std::vector<Point> AdjacentCardinal(const Point& point) const {
-    return PointsInRange(point, Vecs::kCardinal);
-  }
-
-  // Returns in-range Points on the grid that are adjacent to `point` either in
-  // one of the four cardinal directions or diagonally.
-  std::vector<Point> AdjacentWithDiagonal(const Point& point) const {
-    return PointsInRange(point, Vecs::kAdjacent8);
   }
 
   // Iterators over values held in cells.

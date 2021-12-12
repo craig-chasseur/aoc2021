@@ -36,7 +36,7 @@ class HeightMap {
   bool IsLowPoint(const aoc2021::grid2::Point point) const {
     const int height = heights_[point];
     for (const aoc2021::grid2::Point adjacent :
-         heights_.AdjacentCardinal(point)) {
+         heights_.FilterInRange(point.AdjacentCardinal())) {
       if (height >= heights_[adjacent]) return false;
     }
     return true;
@@ -50,7 +50,7 @@ class HeightMap {
       absl::flat_hash_set<aoc2021::grid2::Point> new_frontier;
       for (const aoc2021::grid2::Point cell : frontier) {
         for (const aoc2021::grid2::Point adjacent :
-             heights_.AdjacentCardinal(cell)) {
+             heights_.FilterInRange(cell.AdjacentCardinal())) {
           if (heights_[adjacent] != 9 && !basin.contains(adjacent)) {
             new_frontier.insert(adjacent);
           }
