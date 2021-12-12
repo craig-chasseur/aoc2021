@@ -43,7 +43,7 @@ class DimensionGrid {
   };
 
   struct Vec {
-    std::array<int64_t, dim> deltas{};
+    std::array<int64_t, dim> deltas = {};
 
     bool operator==(const Vec& other) const { return deltas == other.deltas; }
 
