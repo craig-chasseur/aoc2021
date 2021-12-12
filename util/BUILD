@@ -8,6 +8,14 @@ cc_library(
 )
 
 cc_library(
+    name = "dimension_grid",
+    hdrs = ["dimension_grid.h"],
+    deps = [
+        ":check",
+    ],
+)
+
+cc_library(
     name = "grid2",
     srcs = ["grid2.cc"],
     hdrs = ["grid2.h"],
