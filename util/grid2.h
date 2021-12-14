@@ -92,6 +92,19 @@ struct Vec {
     return result;
   }
 
+  // Scaling
+  Vec& operator*=(const int64_t factor) {
+    dx *= factor;
+    dy *= factor;
+    return *this;
+  }
+
+  Vec operator*(const int64_t factor) const {
+    Vec result(*this);
+    result *= factor;
+    return result;
+  }
+
   int64_t ManhattanDistance() const { return std::abs(dx) + std::abs(dy); }
 
   double Magnitude() const { return std::sqrt(dx * dx + dy * dy); }
@@ -138,6 +151,28 @@ class Vecs {
       Vec{.dx = 1, .dy = 1}};
 };
 
+// Represents an infinite line. Currently only handles lines that are horizontal
+// or vertical.
+struct Line {
+  enum class FixedCoord : bool {
+    kX,
+    kY
+  };
+
+  FixedCoord fixed_coord = FixedCoord::kX;
+  int64_t fixed_coord_value = 0;
+
+  static Line FixedX(const int64_t x) {
+    return Line{.fixed_coord = FixedCoord::kX, .fixed_coord_value = x};
+  }
+
+  static Line FixedY(const int64_t y) {
+    return Line{.fixed_coord = FixedCoord::kY, .fixed_coord_value = y};
+  }
+
+  Point Reflect(const Point& p) const;
+};
+
 // Arithmetic between Points and Vecs.
 
 inline Point& Point::operator+=(const Vec& vec) {
@@ -170,6 +205,28 @@ operator+(const Point& p, const VecContainer& vecs) {
     result.emplace_back(p + v);
   }
   return result;
+}
+
+// Arithmetic between Points and Lines.
+
+// Returns the shortest vector from `l` to `p`, which is also guaranteed to be
+// normal to `l`.
+inline Vec operator-(const Point& p, const Line& l) {
+  switch (l.fixed_coord) {
+    case Line::FixedCoord::kX:
+      return Vec{.dx = p.x - l.fixed_coord_value, .dy = 0};
+    case Line::FixedCoord::kY:
+      return Vec{.dx = 0, .dy = p.y - l.fixed_coord_value};
+  }
+}
+
+// Out-of-line override for scaling a Vec with the scaling factor first.
+inline Vec operator*(const int64_t factor, const Vec& vec) {
+  return vec * factor;
+}
+
+inline Point Line::Reflect(const Point &p) const {
+  return p - 2 * (p - *this);
 }
 
 // A dense two-dimensional grid of 'T' values. Cells are addressable as points.
