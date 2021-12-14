@@ -21,6 +21,7 @@ cc_library(
     hdrs = ["grid2.h"],
     deps = [
         ":check",
+        "@com_google_absl//absl/strings",
     ],
 )
 

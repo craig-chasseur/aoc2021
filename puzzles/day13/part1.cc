@@ -59,13 +59,8 @@ int main(int argc, char** argv) {
   CHECK(split.size() == 2);
 
   absl::flat_hash_set<Point> points;
-  for (const std::string& point_str : split.front()) {
-    std::vector<absl::string_view> coords = absl::StrSplit(point_str, ',');
-    CHECK(coords.size() == 2);
-    Point point;
-    CHECK(absl::SimpleAtoi(coords.front(), &point.x));
-    CHECK(absl::SimpleAtoi(coords.back(), &point.y));
-    points.emplace(point);
+  for (const absl::string_view point_str : split.front()) {
+    points.emplace(Point::ParseCoordPair(point_str));
   }
 
   std::vector<Line> folds;

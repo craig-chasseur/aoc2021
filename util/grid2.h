@@ -13,6 +13,8 @@
 #include <utility>
 #include <vector>
 
+#include "absl/strings/numbers.h"
+#include "absl/strings/string_view.h"
 #include "util/check.h"
 
 namespace aoc2021::grid2 {
@@ -23,6 +25,15 @@ struct Vec;
 struct Point {
   int64_t x = 0;
   int64_t y = 0;
+
+  static Point ParseCoordPair(const absl::string_view coord_pair) {
+    typename absl::string_view::size_type comma_pos = coord_pair.find(',');
+    CHECK(comma_pos != absl::string_view::npos);
+    Point parsed;
+    CHECK(absl::SimpleAtoi(coord_pair.substr(0, comma_pos), &parsed.x));
+    CHECK(absl::SimpleAtoi(coord_pair.substr(comma_pos + 1), &parsed.y));
+    return parsed;
+  }
 
   bool operator==(const Point& other) const {
     return x == other.x && y == other.y;
