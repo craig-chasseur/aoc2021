@@ -10,3 +10,14 @@ cc_binary(
         "//util:io",
     ],
 )
+
+cc_binary(
+    name = "part2",
+    srcs = ["part2.cc"],
+    deps = [
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/strings",
+        "//util:check",
+        "//util:io",
+    ],
+)
