@@ -9,6 +9,7 @@
 #include <cstdlib>
 #include <iterator>
 #include <limits>
+#include <ostream>
 #include <string>
 #include <type_traits>
 #include <utility>
@@ -185,6 +186,31 @@ struct Line {
 
   Point Reflect(const Point& p) const;
 };
+
+// Printing.
+inline std::ostream& operator<<(std::ostream& os, const Point& p) {
+  os << "(" << p.x << ", " << p.y << ")";
+  return os;
+}
+
+inline std::ostream& operator<<(std::ostream& os, const Vec& v) {
+  os << "Vec{" << v.dx << ", " << v.dy << "}";
+  return os;
+}
+
+inline std::ostream& operator<<(std::ostream& os, const Line& l) {
+  os << "Line(";
+  switch (l.fixed_coord) {
+    case Line::FixedCoord::kX:
+      os << "x = ";
+      break;
+    case Line::FixedCoord::kY:
+      os << "y = ";
+      break;
+  }
+  os << l.fixed_coord_value << ")";
+  return os;
+}
 
 // Arithmetic between Points and Vecs.
 
