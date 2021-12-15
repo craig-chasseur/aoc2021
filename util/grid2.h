@@ -8,12 +8,14 @@
 #include <cstdint>
 #include <cstdlib>
 #include <iterator>
+#include <limits>
 #include <string>
 #include <type_traits>
 #include <utility>
 #include <vector>
 
 #include "absl/strings/numbers.h"
+#include "absl/strings/str_join.h"
 #include "absl/strings/string_view.h"
 #include "util/check.h"
 
@@ -479,6 +481,40 @@ class Grid {
 
   std::vector<std::vector<T>> values_;
 };
+
+template <typename PointContainer>
+Point MinDimensions(const PointContainer& container) {
+  Point min{.x = std::numeric_limits<int64_t>::max(), .y = std::numeric_limits<int64_t>::max()};
+  for (const Point& point : container) {
+    min.x = std::min(min.x, point.x);
+    min.y = std::min(min.y, point.y);
+  }
+  return min;
+}
+
+template <typename PointContainer>
+Point MaxDimensions(const PointContainer& container) {
+  Point max{.x = std::numeric_limits<int64_t>::min(), .y = std::numeric_limits<int64_t>::min()};
+  for (const Point& point : container) {
+    max.x = std::max(max.x, point.x);
+    max.y = std::max(max.y, point.y);
+  }
+  return max;
+}
+
+// Renders a set of points, returning a multiline ASCII string where points are
+// represented as '#'.
+template <typename PointContainer>
+std::string RenderPoints(const PointContainer& points) {
+  const Point max = MaxDimensions(points);
+
+  std::vector<std::string> view(max.y + 1, std::string(max.x + 1, ' '));
+  for (const Point& point : points) {
+    view[point.y][point.x] = '#';
+  }
+
+  return absl::StrJoin(view, "\n");
+}
 
 }  // namespace aoc2021::grid2
 

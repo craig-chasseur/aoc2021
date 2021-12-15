@@ -31,25 +31,6 @@ absl::flat_hash_set<Point> ApplyFold(absl::flat_hash_set<Point> points,
   return new_points;
 }
 
-void RenderPoints(const absl::flat_hash_set<Point>& points) {
-  int64_t max_x = 0;
-  int64_t max_y = 0;
-
-  for (const Point& point : points) {
-    max_x = std::max(max_x, point.x);
-    max_y = std::max(max_y, point.y);
-  }
-
-  std::vector<std::string> view(max_y + 1, std::string(max_x + 1, ' '));
-  for (const Point& point : points) {
-    view[point.y][point.x] = '#';
-  }
-
-  for (const std::string& line : view) {
-    std::cout << line << "\n";
-  }
-}
-
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -82,7 +63,7 @@ int main(int argc, char** argv) {
   for (const Line& fold : folds) {
     points = ApplyFold(std::move(points), fold);
   }
-  RenderPoints(points);
+  std::cout << RenderPoints(points) << "\n";
 
   return 0;
 }
