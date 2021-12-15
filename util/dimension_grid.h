@@ -81,6 +81,20 @@ class DimensionGrid {
       return result;
     }
 
+    // Scaling.
+    Vec& operator*=(const int64_t factor) {
+      for (int64_t d : deltas) {
+        d *= factor;
+      }
+      return *this;
+    }
+
+    Vec operator*(const int64_t factor) const {
+      Vec result(*this);
+      result *= factor;
+      return result;
+    }
+
     int64_t ManhattanDistance() const {
       return std::accumulate(
           deltas.begin(), deltas.end(), int64_t{0},
@@ -168,8 +182,18 @@ class DimensionGrid {
       return result;
     }
   };
+
+  // Represents an infinite hyperplane with dimensionality dim - 1. Currently
+  // only handles hyperplanes that are fixed on one axis.
+  struct Hyperplane {
+    size_t fixed_coord = 0;
+    int64_t fixed_coord_value;
+
+    Point Reflect(const Point& p) const;
+  };
 };
 
+// Arithmetic between Points and Vecs.
 template <size_t dim>
 typename DimensionGrid<dim>::Point& DimensionGrid<dim>::Point::operator+=(
     const Vec& vec) {
@@ -227,6 +251,26 @@ operator+(const typename DimensionGrid<dim>::Point& p,
   return result;
 }
 
+// Arithmetic between Points and Hyperplanes.
+
+// Returns the shortest vector from `h` to `p`, which is also guaranteed to be
+// normal to `h`.
+template <size_t dim>
+typename DimensionGrid<dim>::Vec operator-(
+    const typename DimensionGrid<dim>::Point& p,
+    const typename DimensionGrid<dim>::Hyperplane& h) {
+  typename DimensionGrid<dim>::Vec diff;
+  diff.deltas[h.fixed_coord] = p.coords[h.fixed_coord] - h.fixed_coord_value;
+  return diff;
+}
+
+// Out-of-line override for scaling a Vec with the scaling factor first.
+template <size_t dim>
+typename DimensionGrid<dim>::Vec operator*(
+    const int64_t factor, const typename DimensionGrid<dim>::Vec& vec) {
+  return vec * factor;
+}
+
 template <size_t dim>
 std::vector<typename DimensionGrid<dim>::Point>
 DimensionGrid<dim>::Point::AdjacentCardinal() const {
@@ -237,6 +281,12 @@ template <size_t dim>
 std::vector<typename DimensionGrid<dim>::Point>
 DimensionGrid<dim>::Point::AdjacentWithDiagonal() const {
   return *this + DimensionGrid<dim>::Vecs::CardinalAndDiagonal();
+}
+
+template <size_t dim>
+typename DimensionGrid<dim>::Point DimensionGrid<dim>::Hyperplane::Reflect(
+    const typename DimensionGrid<dim>::Point& p) const {
+  return p - 2 * (p - *this);
 }
 
 };  // namespace aoc2021
