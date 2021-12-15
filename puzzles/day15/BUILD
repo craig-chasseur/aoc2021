@@ -17,7 +17,6 @@ cc_binary(
     srcs = ["part2.cc"],
     deps = [
         "@com_google_absl//absl/container:flat_hash_map",
-        "@com_google_absl//absl/container:flat_hash_set",
         "//util:check",
         "//util:grid2",
         "//util:io",

@@ -4,7 +4,6 @@
 #include <vector>
 
 #include "absl/container/flat_hash_map.h"
-#include "absl/container/flat_hash_set.h"
 #include "util/check.h"
 #include "util/grid2.h"
 #include "util/io.h"
@@ -53,7 +52,8 @@ int BestPath(const Grid<int>& risk_grid) {
                    static_cast<int64_t>(risk_grid.YSize()) - 1};
 
   absl::flat_hash_map<Point, int> path_risks{{Points::kOrigin, 0}};
-  std::priority_queue<PointAndRisk, std::vector<PointAndRisk>, GreaterRisk> point_queue;
+  std::priority_queue<PointAndRisk, std::vector<PointAndRisk>, GreaterRisk>
+      point_queue;
   point_queue.emplace(Points::kOrigin, 0);
   while (!point_queue.empty()) {
     PointAndRisk current = point_queue.top();
@@ -68,7 +68,8 @@ int BestPath(const Grid<int>& risk_grid) {
     for (const Point& adjacent : current.point.AdjacentCardinal()) {
       if (!risk_grid.InRange(adjacent)) continue;
       const int tentative_risk = current.risk + risk_grid[adjacent];
-      auto [risk_it, inserted] = path_risks.try_emplace(adjacent, tentative_risk);
+      auto [risk_it, inserted] =
+          path_risks.try_emplace(adjacent, tentative_risk);
       if (inserted || tentative_risk < risk_it->second) {
         risk_it->second = tentative_risk;
         point_queue.emplace(adjacent, tentative_risk);
