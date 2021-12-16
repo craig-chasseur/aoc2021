@@ -43,7 +43,7 @@ int main(int argc, char** argv) {
 
   const Point goal{static_cast<int64_t>(risk_grid.XSize()) - 1,
                    static_cast<int64_t>(risk_grid.YSize()) - 1};
-  auto result = aoc2021::AStar<Point, int>(
+  auto result = aoc2021::AStar(
       Points::kOrigin, goal,
       [&risk_grid](const Point& p) {
         return risk_grid.FilterInRange(p.AdjacentCardinal());

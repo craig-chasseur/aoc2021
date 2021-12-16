@@ -2,7 +2,6 @@
 #define UTIL_A_STAR_H_
 
 #include <algorithm>
-#include <functional>
 #include <optional>
 #include <queue>
 #include <utility>
@@ -30,10 +29,10 @@ std::vector<Node> BacktrackPath(
   return path;
 }
 
-template <typename Node, typename Cost, typename AdjacentFn>
-std::optional<BestPath<Node, Cost>> AStar(
-    Node start, Node goal, AdjacentFn get_adjacent,
-    std::function<Cost(const Node&, const Node&)> edge_cost) {
+template <typename Node, typename AdjacentFn, typename CostFn>
+auto AStar(Node start, Node goal, AdjacentFn get_adjacent, CostFn edge_cost)
+    -> std::optional<BestPath<Node, decltype(edge_cost(start, goal))>> {
+  using Cost = decltype(edge_cost(start, goal));
   struct NodeAndCost {
     explicit NodeAndCost(Node node_in, Cost cost_in)
         : node(std::move(node_in)), cost(cost_in) {}
@@ -43,7 +42,7 @@ std::optional<BestPath<Node, Cost>> AStar(
   };
 
   struct GreaterCost {
-    bool operator()(const NodeAndCost& a, const NodeAndCost& b) {
+    bool operator()(const NodeAndCost& a, const NodeAndCost& b) const {
       return a.cost > b.cost;
     }
   };
