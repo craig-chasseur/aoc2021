@@ -128,8 +128,7 @@ std::pair<uint64_t, std::vector<bool>::const_iterator> ParseLit(
   for (;;) {
     CHECK(end - begin >= 5);
     const bool terminate = !*(begin++);
-    value = (value << 4) | ParseBits(begin, begin + 4);
-    begin += 4;
+    value = (value << 4) | ParseBits(begin, begin += 4);
     if (terminate) return {value, begin};
   }
 }
@@ -145,12 +144,10 @@ PacketAndIterator Parse(std::vector<bool>::const_iterator begin,
   result.packet = std::make_unique<Packet>();
 
   CHECK(end - begin >= 3);
-  result.packet->version_ = ParseBits(begin, begin + 3);
-  begin += 3;
+  result.packet->version_ = ParseBits(begin, begin += 3);
 
   CHECK(end - begin >= 3);
-  result.packet->type_ = ParseBits(begin, begin + 3);
-  begin += 3;
+  result.packet->type_ = ParseBits(begin, begin += 3);
 
   if (result.packet->type_ == 4) {
     auto [literal, after_literal] = ParseLit(begin, end);
@@ -162,8 +159,7 @@ PacketAndIterator Parse(std::vector<bool>::const_iterator begin,
     const bool length_as_subs = *(begin++);
     if (!length_as_subs) {
       CHECK(end - begin >= 15);
-      const uint64_t subpacket_bits = ParseBits(begin, begin + 15);
-      begin += 15;
+      const uint64_t subpacket_bits = ParseBits(begin, begin += 15);
       CHECK(end - begin >= subpacket_bits);
       const std::vector<bool>::const_iterator end_of_subpackets =
           begin + subpacket_bits;
@@ -174,8 +170,7 @@ PacketAndIterator Parse(std::vector<bool>::const_iterator begin,
       }
     } else {
       CHECK(end - begin >= 11);
-      const uint64_t num_subpackets = ParseBits(begin, begin + 11);
-      begin += 11;
+      const uint64_t num_subpackets = ParseBits(begin, begin += 11);
       for (uint64_t subpacket_num = 0; subpacket_num < num_subpackets;
            ++subpacket_num) {
         PacketAndIterator subpacket_result = Parse(begin, end);
