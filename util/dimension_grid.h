@@ -7,7 +7,9 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
+#include <limits>
 #include <numeric>
+#include <ostream>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -40,6 +42,13 @@ class DimensionGrid {
     friend H AbslHashValue(H h, const Point& point) {
       return H::combine(std::move(h), point.coords);
     }
+  };
+
+  class Points {
+   public:
+    Points() = delete;
+
+    inline static constexpr Point kOrigin{};
   };
 
   struct Vec {
@@ -191,7 +200,66 @@ class DimensionGrid {
 
     Point Reflect(const Point& p) const;
   };
+
+  template <typename PointContainer>
+  static Point MinDimensions(const PointContainer& container) {
+    Point min;
+    std::fill(min.coords.begin(), min.coords.end(),
+              std::numeric_limits<int64_t>::max());
+    for (const Point& point : container) {
+      for (size_t d = 0; d < dim; ++d) {
+        min.coords[d] = std::min(min.coords[d], point.coords[d]);
+      }
+    }
+    return min;
+  }
+
+  template <typename PointContainer>
+  static Point MaxDimensions(const PointContainer& container) {
+    Point max;
+    std::fill(max.coords.begin(), max.coords.end(),
+              std::numeric_limits<int64_t>::min());
+    for (const Point& point : container) {
+      for (size_t d = 0; d < dim; ++d) {
+        max.coords[d] = std::max(max.coords[d], point.coords[d]);
+      }
+    }
+    return max;
+  }
 };
+
+// Printing.
+template <size_t dim>
+std::ostream& operator<<(std::ostream& os,
+                         const typename DimensionGrid<dim>::Point& p) {
+  os << "(";
+  for (size_t d = 0; d < dim; ++d) {
+    os << p.coords[d];
+    if (d != dim - 1) os << ", ";
+  }
+  os << ")";
+  return os;
+}
+
+template <size_t dim>
+std::ostream& operator<<(std::ostream& os,
+                         const typename DimensionGrid<dim>::Vec& v) {
+  os << "Vec{";
+  for (size_t d = 0; d < dim; ++d) {
+    os << v.deltas[d];
+    if (d != dim - 1) os << ", ";
+  }
+  os << "}";
+  return os;
+}
+
+template <size_t dim>
+std::ostream& operator<<(std::ostream& os,
+                         const typename DimensionGrid<dim>::Hyperplane& h) {
+  os << "Hyperplane(dim_" << h.fixed_coord << " = " << h.fixed_coord_value
+     << ")";
+  return os;
+}
 
 // Arithmetic between Points and Vecs.
 template <size_t dim>
