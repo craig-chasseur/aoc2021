@@ -59,7 +59,8 @@ class Number {
     return num;
   }
 
-  static std::unique_ptr<Number> Add(std::unique_ptr<Number> left, std::unique_ptr<Number> right) {
+  static std::unique_ptr<Number> Add(std::unique_ptr<Number> left,
+                                     std::unique_ptr<Number> right) {
     auto num = std::make_unique<Number>();
     left->parent_ = num.get();
     right->parent_ = num.get();
