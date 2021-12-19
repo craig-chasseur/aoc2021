@@ -24,6 +24,8 @@ class DimensionGrid {
   DimensionGrid() = delete;
 
   struct Vec;
+  struct Rotation;
+  struct MultiRotation;
 
   struct Point {
     std::array<int64_t, dim> coords = {};
@@ -120,6 +122,28 @@ class DimensionGrid {
       return result;
     }
 
+    Vec& operator*=(const Rotation& rot) {
+      *this = Rotate90(rot.about_axis, rot.turns_90);
+      return *this;
+    }
+
+    Vec operator*(const Rotation& rot) const {
+      return Rotate90(rot.about_axis, rot.turns_90);
+    }
+
+    Vec& operator*=(const MultiRotation& multi_rot) {
+      for (const Rotation& rot : multi_rot.rotations) {
+        *this = Rotate90(rot.about_axis, rot.turns_90);
+      }
+      return *this;
+    }
+
+    Vec operator*(const MultiRotation& multi_rot) const {
+      Vec result(*this);
+      result *= multi_rot;
+      return result;
+    }
+
     // Scaling.
     Vec& operator*=(const int64_t factor) {
       for (int64_t d : deltas) {
@@ -145,6 +169,7 @@ class DimensionGrid {
     }
 
     Vec Rotate90(size_t about_axis, int turns) const {
+      // Only implemented in 3D for now.
       CHECK(dim == 3);
       Vec rotated(*this);
       turns %= 4;
@@ -261,6 +286,65 @@ class DimensionGrid {
     Point Reflect(const Point& p) const;
   };
 
+  struct Rotation {
+    size_t about_axis = 0;
+    int turns_90 = 0;
+  };
+
+  struct MultiRotation {
+    std::vector<Rotation> rotations;
+  };
+
+  class Rotations {
+   public:
+    Rotations() = delete;
+
+    static std::vector<MultiRotation> AllOrientations() {
+      // Only 3D is currently supported.
+      CHECK(dim == 3);
+
+      std::vector<MultiRotation> orientations;
+      for (int z_turns = 0; z_turns < 4; ++z_turns) {
+        Rotation z_rot{.about_axis = 2, .turns_90 = z_turns};
+        for (int x_turns = 0; x_turns < 4; ++x_turns) {
+          orientations.emplace_back(MultiRotation{.rotations{
+              z_rot, Rotation{.about_axis = 0, .turns_90 = x_turns}}});
+        }
+      }
+      for (int y_turns : {1, 3}) {
+        Rotation y_rot{.about_axis = 1, .turns_90 = y_turns};
+        for (int x_turns = 0; x_turns < 4; ++x_turns) {
+          orientations.emplace_back(MultiRotation{.rotations{
+              y_rot, Rotation{.about_axis = 0, .turns_90 = x_turns}}});
+        }
+      }
+      return orientations;
+    }
+  };
+
+  // Arithmetic between Vecs and Rotations.
+  template <typename VecContainer>
+  friend std::enable_if_t<
+      std::is_same_v<Vec, typename VecContainer::value_type>, std::vector<Vec>>
+  operator*(const VecContainer& vecs, const Rotation& rot) {
+    std::vector<Vec> result;
+    for (const Vec& v : vecs) {
+      result.emplace_back(v * rot);
+    }
+    return result;
+  }
+
+  template <typename VecContainer>
+  friend std::enable_if_t<
+      std::is_same_v<Vec, typename VecContainer::value_type>, std::vector<Vec>>
+  operator*(const VecContainer& vecs, const MultiRotation& multi_rot) {
+    std::vector<Vec> result;
+    for (const Vec& v : vecs) {
+      result.emplace_back(v * multi_rot);
+    }
+    return result;
+  }
+
   template <typename PointContainer>
   static Point MinDimensions(const PointContainer& container) {
     Point min;
@@ -303,23 +387,6 @@ typename DimensionGrid<dim>::Point& DimensionGrid<dim>::Point::operator-=(
     const Vec& vec) {
   *this += (-vec);
   return *this;
-}
-
-template <size_t dim>
-typename DimensionGrid<dim>::Point operator+(
-    const typename DimensionGrid<dim>::Point& p,
-    const typename DimensionGrid<dim>::Vec& v) {
-  typename DimensionGrid<dim>::Point result;
-  for (size_t d = 0; d < dim; ++d) {
-    result.coords[d] = p.coords[d] + v.deltas[d];
-  }
-}
-
-template <size_t dim>
-typename DimensionGrid<dim>::Point operator-(
-    const typename DimensionGrid<dim>::Point& p,
-    const typename DimensionGrid<dim>::Vec& v) {
-  return p + (-v);
 }
 
 template <size_t dim, typename VecContainer>

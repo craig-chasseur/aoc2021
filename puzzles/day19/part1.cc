@@ -48,31 +48,11 @@ struct SensorData {
   const std::vector<SensorData>& AllOrientations() const {
     if (all_orientations_ != nullptr) return *all_orientations_;
     all_orientations_ = std::make_unique<std::vector<SensorData>>();
-    for (int z_rotation = 0; z_rotation < 4; ++z_rotation) {
-      SensorData facing(*this);
-      for (auto& signal : facing.beacon_signals) {
-        signal = signal.Rotate90(2, z_rotation);
-      }
-      for (int x_rotation = 0; x_rotation < 4; ++x_rotation) {
-        SensorData oriented(facing);
-        for (auto& signal : oriented.beacon_signals) {
-          signal = signal.Rotate90(0, x_rotation);
-        }
-        all_orientations_->emplace_back(oriented);
-      }
-    }
-    for (int y_rotation : {1, 3}) {
-      SensorData facing(*this);
-      for (auto& signal : facing.beacon_signals) {
-        signal = signal.Rotate90(1, y_rotation);
-      }
-      for (int x_rotation = 0; x_rotation < 4; ++x_rotation) {
-        SensorData oriented(facing);
-        for (auto& signal : oriented.beacon_signals) {
-          signal = signal.Rotate90(0, x_rotation);
-        }
-        all_orientations_->emplace_back(oriented);
-      }
+    for (const auto& rot : aoc2021::DimensionGrid<3>::Rotations::AllOrientations()) {
+      SensorData oriented;
+      oriented.position = position;
+      oriented.beacon_signals = beacon_signals * rot;
+      all_orientations_->emplace_back(std::move(oriented));
     }
     CHECK(all_orientations_->size() == 24);
     return *all_orientations_;
