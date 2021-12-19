@@ -6,6 +6,10 @@
 
 namespace aoc2021::grid2 {
 
+Point Point::Rotate90(const Point& pivot, int turns) const {
+  return pivot + (*this - pivot).Rotate90(turns);
+}
+
 std::vector<Point> Point::AdjacentCardinal() const {
   return *this + Vecs::kCardinal;
 }

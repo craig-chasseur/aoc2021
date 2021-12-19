@@ -49,6 +49,13 @@ struct Point {
   Point& operator+=(const Vec& vec);
   Point& operator-=(const Vec& vec);
 
+  Point Rotate90(const Point& pivot, int turns) const;
+
+  std::array<Point, 4> AllRotations90(const Point& pivot) const {
+    return {Rotate90(pivot, 0), Rotate90(pivot, 1), Rotate90(pivot, 2),
+            Rotate90(pivot, 3)};
+  }
+
   std::vector<Point> AdjacentCardinal() const;
   std::vector<Point> AdjacentWithDiagonal() const;
 
@@ -119,6 +126,21 @@ struct Vec {
     return result;
   }
 
+  Vec Rotate90(int turns) const {
+    Vec rotated(*this);
+    turns %= 4;
+    for (int t = 0; t < turns; ++t) {
+      const int64_t tmp = dx;
+      rotated.dx = dy;
+      rotated.dy = -tmp;
+    }
+    return rotated;
+  }
+
+  std::array<Vec, 4> AllRotations90() const {
+    return {Rotate90(0), Rotate90(1), Rotate90(2), Rotate90(3)};
+  }
+
   int64_t ManhattanDistance() const { return std::abs(dx) + std::abs(dy); }
 
   double Magnitude() const { return std::sqrt(dx * dx + dy * dy); }
@@ -168,10 +190,7 @@ class Vecs {
 // Represents an infinite line. Currently only handles lines that are horizontal
 // or vertical.
 struct Line {
-  enum class FixedCoord : bool {
-    kX,
-    kY
-  };
+  enum class FixedCoord : bool { kX, kY };
 
   FixedCoord fixed_coord = FixedCoord::kX;
   int64_t fixed_coord_value = 0;
@@ -264,9 +283,7 @@ inline Vec operator*(const int64_t factor, const Vec& vec) {
   return vec * factor;
 }
 
-inline Point Line::Reflect(const Point &p) const {
-  return p - 2 * (p - *this);
-}
+inline Point Line::Reflect(const Point& p) const { return p - 2 * (p - *this); }
 
 // A dense two-dimensional grid of 'T' values. Cells are addressable as points.
 template <typename T = int>
@@ -510,7 +527,8 @@ class Grid {
 
 template <typename PointContainer>
 Point MinDimensions(const PointContainer& container) {
-  Point min{.x = std::numeric_limits<int64_t>::max(), .y = std::numeric_limits<int64_t>::max()};
+  Point min{.x = std::numeric_limits<int64_t>::max(),
+            .y = std::numeric_limits<int64_t>::max()};
   for (const Point& point : container) {
     min.x = std::min(min.x, point.x);
     min.y = std::min(min.y, point.y);
@@ -520,7 +538,8 @@ Point MinDimensions(const PointContainer& container) {
 
 template <typename PointContainer>
 Point MaxDimensions(const PointContainer& container) {
-  Point max{.x = std::numeric_limits<int64_t>::min(), .y = std::numeric_limits<int64_t>::min()};
+  Point max{.x = std::numeric_limits<int64_t>::min(),
+            .y = std::numeric_limits<int64_t>::min()};
   for (const Point& point : container) {
     max.x = std::max(max.x, point.x);
     max.y = std::max(max.y, point.y);
