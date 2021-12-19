@@ -33,7 +33,37 @@ class DimensionGrid {
     bool operator!=(const Point& other) const { return coords != other.coords; }
 
     Point& operator+=(const Vec& vec);
+    Point operator+(const Vec& vec) const {
+      Point result(*this);
+      result += vec;
+      return result;
+    }
+
     Point& operator-=(const Vec& vec);
+    Point operator-(const Vec& vec) const {
+      Point result(*this);
+      result -= vec;
+      return result;
+    }
+
+    friend Vec operator-(const typename DimensionGrid<dim>::Point& a,
+                         const typename DimensionGrid<dim>::Point& b) {
+      typename DimensionGrid<dim>::Vec diff;
+      for (size_t d = 0; d < dim; ++d) {
+        diff.deltas[d] = a.coords[d] - b.coords[d];
+      }
+      return diff;
+    }
+
+    friend std::ostream& operator<<(std::ostream& os, const Point& p) {
+      os << "(";
+      for (size_t d = 0; d < dim; ++d) {
+        os << p.coords[d];
+        if (d != dim - 1) os << ", ";
+      }
+      os << ")";
+      return os;
+    }
 
     std::vector<Point> AdjacentCardinal() const;
     std::vector<Point> AdjacentWithDiagonal() const;
@@ -102,6 +132,30 @@ class DimensionGrid {
       Vec result(*this);
       result *= factor;
       return result;
+    }
+
+    friend std::ostream& operator<<(std::ostream& os, const Vec& v) {
+      os << "Vec{";
+      for (size_t d = 0; d < dim; ++d) {
+        os << v.deltas[d];
+        if (d != dim - 1) os << ", ";
+      }
+      os << "}";
+      return os;
+    }
+
+    Vec Rotate90(size_t about_axis, int turns) const {
+      CHECK(dim == 3);
+      Vec rotated(*this);
+      turns %= 4;
+      int64_t& first_dim = rotated.deltas[about_axis == 0 ? 1 : 0];
+      int64_t& second_dim = rotated.deltas[about_axis == 2 ? 1 : 2];
+      for (int t = 0; t < turns; ++t) {
+        const int64_t tmp = first_dim;
+        first_dim = second_dim;
+        second_dim = -tmp;
+      }
+      return rotated;
     }
 
     int64_t ManhattanDistance() const {
@@ -198,6 +252,12 @@ class DimensionGrid {
     size_t fixed_coord = 0;
     int64_t fixed_coord_value;
 
+    friend std::ostream& operator<<(std::ostream& os, const Hyperplane& h) {
+      os << "Hyperplane(dim_" << h.fixed_coord << " = " << h.fixed_coord_value
+         << ")";
+      return os;
+    }
+
     Point Reflect(const Point& p) const;
   };
 
@@ -228,39 +288,6 @@ class DimensionGrid {
   }
 };
 
-// Printing.
-template <size_t dim>
-std::ostream& operator<<(std::ostream& os,
-                         const typename DimensionGrid<dim>::Point& p) {
-  os << "(";
-  for (size_t d = 0; d < dim; ++d) {
-    os << p.coords[d];
-    if (d != dim - 1) os << ", ";
-  }
-  os << ")";
-  return os;
-}
-
-template <size_t dim>
-std::ostream& operator<<(std::ostream& os,
-                         const typename DimensionGrid<dim>::Vec& v) {
-  os << "Vec{";
-  for (size_t d = 0; d < dim; ++d) {
-    os << v.deltas[d];
-    if (d != dim - 1) os << ", ";
-  }
-  os << "}";
-  return os;
-}
-
-template <size_t dim>
-std::ostream& operator<<(std::ostream& os,
-                         const typename DimensionGrid<dim>::Hyperplane& h) {
-  os << "Hyperplane(dim_" << h.fixed_coord << " = " << h.fixed_coord_value
-     << ")";
-  return os;
-}
-
 // Arithmetic between Points and Vecs.
 template <size_t dim>
 typename DimensionGrid<dim>::Point& DimensionGrid<dim>::Point::operator+=(
@@ -276,17 +303,6 @@ typename DimensionGrid<dim>::Point& DimensionGrid<dim>::Point::operator-=(
     const Vec& vec) {
   *this += (-vec);
   return *this;
-}
-
-template <size_t dim>
-typename DimensionGrid<dim>::Vec operator-(
-    const typename DimensionGrid<dim>::Point& a,
-    const typename DimensionGrid<dim>::Point& b) {
-  typename DimensionGrid<dim>::Vec diff;
-  for (size_t d = 0; d < dim; ++d) {
-    diff.deltas[d] = a.coords[d] - b.coords[d];
-  }
-  return diff;
 }
 
 template <size_t dim>
