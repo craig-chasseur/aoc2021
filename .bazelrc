@@ -1,1 +1,2 @@
 build:llvm --crosstool_top=//toolchain:llvm_13_gentoo_suite
+build:llvm_debian --crosstool_top=//toolchain:llvm_11_debian_suite
