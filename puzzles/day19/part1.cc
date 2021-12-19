@@ -19,69 +19,88 @@ namespace {
 struct SensorData {
   SensorData() = default;
 
+  explicit SensorData(
+      std::vector<aoc2021::DimensionGrid<3>::Vec> beacon_signals)
+      : beacon_signals_(std::move(beacon_signals)) {}
+
   SensorData(const SensorData& other)
-      : position(other.position), beacon_signals(other.beacon_signals) {}
+      : position_(other.position_), beacon_signals_(other.beacon_signals_) {}
   SensorData(SensorData&& other)
-      : position(std::move(other.position)),
-        beacon_signals(std::move(other.beacon_signals)),
+      : position_(std::move(other.position_)),
+        beacon_signals_(std::move(other.beacon_signals_)),
         all_orientations_(std::move(other.all_orientations_)) {}
 
   SensorData& operator=(const SensorData& other) {
     if (&other == this) return *this;
-    position = other.position;
-    beacon_signals = other.beacon_signals;
+    position_ = other.position_;
+    beacon_signals_ = other.beacon_signals_;
     all_orientations_.reset();
     return *this;
   }
 
   SensorData& operator=(SensorData&& other) {
     if (&other == this) return *this;
-    position = std::move(other.position);
-    beacon_signals = std::move(other.beacon_signals);
+    position_ = std::move(other.position_);
+    beacon_signals_ = std::move(other.beacon_signals_);
     all_orientations_ = std::move(other.all_orientations_);
     return *this;
   }
 
-  std::optional<aoc2021::DimensionGrid<3>::Point> position;
-  std::vector<aoc2021::DimensionGrid<3>::Vec> beacon_signals;
+  void SetPosition(aoc2021::DimensionGrid<3>::Point position) {
+    position_ = std::move(position);
+  }
 
-  const std::vector<SensorData>& AllOrientations() const {
+  bool MatchToKnown(const SensorData& known) {
+    CHECK(known.position_.has_value());
+    CHECK(!position_.has_value());
+    for (const auto& candidate_orientation : AllOrientations()) {
+      absl::flat_hash_map<aoc2021::DimensionGrid<3>::Vec, int> offset_counts;
+      for (const auto& outer_signal : known.beacon_signals_) {
+        for (const auto& inner_signal : candidate_orientation) {
+          ++offset_counts[outer_signal - inner_signal];
+        }
+      }
+      for (auto& [offset, count] : offset_counts) {
+        if (count >= 12) {
+          position_ = known.position_.value() + offset;
+          beacon_signals_ = candidate_orientation;
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  aoc2021::DimensionGrid<3>::Point position() const {
+    CHECK(position_.has_value());
+    return *position_;
+  }
+
+  std::vector<aoc2021::DimensionGrid<3>::Point> AbsoluteBeaconPositions()
+      const {
+    CHECK(position_.has_value());
+    return *position_ + beacon_signals_;
+  }
+
+ private:
+  const std::vector<std::vector<aoc2021::DimensionGrid<3>::Vec>>&
+  AllOrientations() {
     if (all_orientations_ != nullptr) return *all_orientations_;
-    all_orientations_ = std::make_unique<std::vector<SensorData>>();
+    all_orientations_ = std::make_unique<
+        std::vector<std::vector<aoc2021::DimensionGrid<3>::Vec>>>();
     for (const auto& rot :
          aoc2021::DimensionGrid<3>::Rotations::AllOrientations()) {
-      SensorData oriented;
-      oriented.position = position;
-      oriented.beacon_signals = beacon_signals * rot;
-      all_orientations_->emplace_back(std::move(oriented));
+      all_orientations_->emplace_back(beacon_signals_ * rot);
     }
     CHECK(all_orientations_->size() == 24);
     return *all_orientations_;
   }
 
- private:
-  mutable std::unique_ptr<std::vector<SensorData>> all_orientations_;
+  std::optional<aoc2021::DimensionGrid<3>::Point> position_;
+  std::vector<aoc2021::DimensionGrid<3>::Vec> beacon_signals_;
+  std::unique_ptr<std::vector<std::vector<aoc2021::DimensionGrid<3>::Vec>>>
+      all_orientations_;
 };
-
-std::optional<SensorData> MatchBeacons(const SensorData& known,
-                                       const SensorData& candidate) {
-  for (const auto& candidate_orientation : candidate.AllOrientations()) {
-    absl::flat_hash_map<aoc2021::DimensionGrid<3>::Vec, int> offset_counts;
-    for (const auto& outer_signal : known.beacon_signals) {
-      for (const auto& inner_signal : candidate_orientation.beacon_signals) {
-        ++offset_counts[outer_signal - inner_signal];
-      }
-    }
-    for (auto& [offset, count] : offset_counts) {
-      if (count >= 12) {
-        SensorData solved_orientation(candidate_orientation);
-        solved_orientation.position = known.position.value() + offset;
-        return solved_orientation;
-      }
-    }
-  }
-  return std::nullopt;
-}
 
 }  // namespace
 
@@ -91,21 +110,21 @@ int main(int argc, char** argv) {
       aoc2021::SplitByEmptyStrings(std::move(lines));
   std::list<SensorData> sensor_data;
   for (const std::vector<std::string>& scanner_desc : scanner_lines) {
-    SensorData sensor;
+    std::vector<aoc2021::DimensionGrid<3>::Vec> beacon_signals;
     for (auto line_it = scanner_desc.begin() + 1; line_it != scanner_desc.end();
          ++line_it) {
-      sensor.beacon_signals.emplace_back(
+      beacon_signals.emplace_back(
           aoc2021::DimensionGrid<3>::Point::ParseCommaSeparated(*line_it) -
           aoc2021::DimensionGrid<3>::Points::kOrigin);
     }
-    sensor_data.emplace_back(std::move(sensor));
+    sensor_data.emplace_back(std::move(beacon_signals));
   }
 
   std::vector<SensorData> exhausted;
   std::deque<SensorData> resolved;
   resolved.emplace_back(std::move(sensor_data.front()));
   sensor_data.erase(sensor_data.begin());
-  resolved.front().position = aoc2021::DimensionGrid<3>::Points::kOrigin;
+  resolved.front().SetPosition(aoc2021::DimensionGrid<3>::Points::kOrigin);
   while (!sensor_data.empty()) {
     std::cout << "Resolved " << (resolved.size() + exhausted.size())
               << " sensors (" << exhausted.size() << " exhausted)\n";
@@ -114,9 +133,8 @@ int main(int argc, char** argv) {
     std::vector<std::list<SensorData>::iterator> newly_resolved;
     for (auto unresolved_it = sensor_data.begin();
          unresolved_it != sensor_data.end(); ++unresolved_it) {
-      if (auto maybe_resolved = MatchBeacons(current_resolved, *unresolved_it);
-          maybe_resolved.has_value()) {
-        resolved.emplace_back(*maybe_resolved);
+      if (unresolved_it->MatchToKnown(current_resolved)) {
+        resolved.emplace_back(std::move(*unresolved_it));
         newly_resolved.emplace_back(unresolved_it);
       }
     }
@@ -132,18 +150,17 @@ int main(int argc, char** argv) {
                    std::make_move_iterator(resolved.end()));
   absl::flat_hash_set<aoc2021::DimensionGrid<3>::Point> beacons;
   for (const SensorData& sensor : exhausted) {
-    for (const aoc2021::DimensionGrid<3>::Vec& signal : sensor.beacon_signals) {
-      beacons.emplace(sensor.position.value() + signal);
-    }
+    auto beacons_from_sensor = sensor.AbsoluteBeaconPositions();
+    beacons.insert(beacons_from_sensor.begin(), beacons_from_sensor.end());
   }
   std::cout << "Part 1 (total beacons): " << beacons.size() << "\n";
 
   std::int64_t max_manhattan = -1;
   for (const SensorData& outer : exhausted) {
     for (const SensorData& inner : exhausted) {
-      max_manhattan = std::max(max_manhattan,
-                               (outer.position.value() - inner.position.value())
-                                   .ManhattanDistance());
+      max_manhattan =
+          std::max(max_manhattan,
+                   (outer.position() - inner.position()).ManhattanDistance());
     }
   }
   std::cout << "Part 2 (max manhattan distance): " << max_manhattan << "\n";

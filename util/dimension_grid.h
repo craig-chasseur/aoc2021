@@ -335,6 +335,18 @@ class DimensionGrid {
     }
   };
 
+  // Arithmetic between Points and Vecs.
+  template <typename VecContainer>
+  std::enable_if_t<std::is_same_v<Vec, typename VecContainer::value_type>,
+                   std::vector<Point>> friend
+  operator+(const Point& p, const VecContainer& vecs) {
+    std::vector<Point> result;
+    for (const Vec& v : vecs) {
+      result.emplace_back(p + v);
+    }
+    return result;
+  }
+
   // Arithmetic between Vecs and Rotations.
   template <typename VecContainer>
   friend std::enable_if_t<
@@ -400,19 +412,6 @@ typename DimensionGrid<dim>::Point& DimensionGrid<dim>::Point::operator-=(
     const Vec& vec) {
   *this += (-vec);
   return *this;
-}
-
-template <size_t dim, typename VecContainer>
-std::enable_if_t<std::is_same_v<typename DimensionGrid<dim>::Vec,
-                                typename VecContainer::value_type>,
-                 std::vector<typename DimensionGrid<dim>::Point>>
-operator+(const typename DimensionGrid<dim>::Point& p,
-          const VecContainer& vecs) {
-  std::vector<typename DimensionGrid<dim>::Point> result;
-  for (const typename DimensionGrid<dim>::Vec& v : vecs) {
-    result.emplace_back(p + v);
-  }
-  return result;
 }
 
 // Arithmetic between Points and Hyperplanes.
