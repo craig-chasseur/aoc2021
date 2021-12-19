@@ -14,6 +14,9 @@
 #include <utility>
 #include <vector>
 
+#include "absl/strings/numbers.h"
+#include "absl/strings/str_split.h"
+#include "absl/strings/string_view.h"
 #include "util/check.h"
 
 namespace aoc2021 {
@@ -29,6 +32,16 @@ class DimensionGrid {
 
   struct Point {
     std::array<int64_t, dim> coords = {};
+
+    static Point ParseCommaSeparated(const absl::string_view rep) {
+      std::vector<absl::string_view> coord_strings = absl::StrSplit(rep, ',');
+      CHECK(coord_strings.size() == dim);
+      Point parsed;
+      for (size_t d = 0; d < dim; ++d) {
+        CHECK(absl::SimpleAtoi(coord_strings[d], &parsed.coords[d]));
+      }
+      return parsed;
+    }
 
     bool operator==(const Point& other) const { return coords == other.coords; }
 

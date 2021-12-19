@@ -48,7 +48,8 @@ struct SensorData {
   const std::vector<SensorData>& AllOrientations() const {
     if (all_orientations_ != nullptr) return *all_orientations_;
     all_orientations_ = std::make_unique<std::vector<SensorData>>();
-    for (const auto& rot : aoc2021::DimensionGrid<3>::Rotations::AllOrientations()) {
+    for (const auto& rot :
+         aoc2021::DimensionGrid<3>::Rotations::AllOrientations()) {
       SensorData oriented;
       oriented.position = position;
       oriented.beacon_signals = beacon_signals * rot;
@@ -93,14 +94,9 @@ int main(int argc, char** argv) {
     SensorData sensor;
     for (auto line_it = scanner_desc.begin() + 1; line_it != scanner_desc.end();
          ++line_it) {
-      std::vector<absl::string_view> coord_strings =
-          absl::StrSplit(*line_it, ',');
-      CHECK(coord_strings.size() == 3);
-      aoc2021::DimensionGrid<3>::Vec relative;
-      for (int d = 0; d < 3; ++d) {
-        CHECK(absl::SimpleAtoi(coord_strings[d], &relative.deltas[d]));
-      }
-      sensor.beacon_signals.emplace_back(std::move(relative));
+      sensor.beacon_signals.emplace_back(
+          aoc2021::DimensionGrid<3>::Point::ParseCommaSeparated(*line_it) -
+          aoc2021::DimensionGrid<3>::Points::kOrigin);
     }
     sensor_data.emplace_back(std::move(sensor));
   }
