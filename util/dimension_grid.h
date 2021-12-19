@@ -47,14 +47,24 @@ class DimensionGrid {
 
     bool operator!=(const Point& other) const { return coords != other.coords; }
 
-    Point& operator+=(const Vec& vec);
+    Point& operator+=(const Vec& vec) {
+      for (size_t d = 0; d < dim; ++d) {
+        this->coords[d] += vec.deltas[d];
+      }
+      return *this;
+    }
+
     Point operator+(const Vec& vec) const {
       Point result(*this);
       result += vec;
       return result;
     }
 
-    Point& operator-=(const Vec& vec);
+    Point& operator-=(const Vec& vec) {
+      *this += (-vec);
+      return *this;
+    }
+
     Point operator-(const Vec& vec) const {
       Point result(*this);
       result -= vec;
@@ -80,8 +90,13 @@ class DimensionGrid {
       return os;
     }
 
-    std::vector<Point> AdjacentCardinal() const;
-    std::vector<Point> AdjacentWithDiagonal() const;
+    std::vector<Point> AdjacentCardinal() const {
+      return *this + DimensionGrid<dim>::Vecs::Cardinal();
+    }
+
+    std::vector<Point> AdjacentWithDiagonal() const {
+      return *this + DimensionGrid<dim>::Vecs::CardinalAndDiagonal();
+    }
 
     template <typename H>
     friend H AbslHashValue(H h, const Point& point) {
@@ -246,6 +261,9 @@ class DimensionGrid {
     }
   };
 
+  // Scaling Vec with scale factor first.
+  friend Vec operator*(const int64_t factor, Vec& vec) { return vec * factor; }
+
   class Vecs {
    public:
     Vecs() = delete;
@@ -296,7 +314,9 @@ class DimensionGrid {
       return os;
     }
 
-    Point Reflect(const Point& p) const;
+    Point Reflect(const Point& p) const {
+      return p - 2 * (p - *this);
+    }
   };
 
   struct Rotation {
@@ -370,6 +390,16 @@ class DimensionGrid {
     return result;
   }
 
+  // Arithmetic between Points and Hyperplanes.
+
+  // Returns the shortest vector from `h` to `p`, which is also guaranteed to be
+  // normal to `h`.
+  friend Vec operator-(const Point& p, const Hyperplane& h) {
+    Vec diff;
+    diff.deltas[h.fixed_coord] = p.coords[h.fixed_coord] - h.fixed_coord_value;
+    return diff;
+  }
+
   template <typename PointContainer>
   static Point MinDimensions(const PointContainer& container) {
     Point min;
@@ -396,61 +426,6 @@ class DimensionGrid {
     return max;
   }
 };
-
-// Arithmetic between Points and Vecs.
-template <size_t dim>
-typename DimensionGrid<dim>::Point& DimensionGrid<dim>::Point::operator+=(
-    const Vec& vec) {
-  for (size_t d = 0; d < dim; ++d) {
-    this->coords[d] += vec.deltas[d];
-  }
-  return *this;
-}
-
-template <size_t dim>
-typename DimensionGrid<dim>::Point& DimensionGrid<dim>::Point::operator-=(
-    const Vec& vec) {
-  *this += (-vec);
-  return *this;
-}
-
-// Arithmetic between Points and Hyperplanes.
-
-// Returns the shortest vector from `h` to `p`, which is also guaranteed to be
-// normal to `h`.
-template <size_t dim>
-typename DimensionGrid<dim>::Vec operator-(
-    const typename DimensionGrid<dim>::Point& p,
-    const typename DimensionGrid<dim>::Hyperplane& h) {
-  typename DimensionGrid<dim>::Vec diff;
-  diff.deltas[h.fixed_coord] = p.coords[h.fixed_coord] - h.fixed_coord_value;
-  return diff;
-}
-
-// Out-of-line override for scaling a Vec with the scaling factor first.
-template <size_t dim>
-typename DimensionGrid<dim>::Vec operator*(
-    const int64_t factor, const typename DimensionGrid<dim>::Vec& vec) {
-  return vec * factor;
-}
-
-template <size_t dim>
-std::vector<typename DimensionGrid<dim>::Point>
-DimensionGrid<dim>::Point::AdjacentCardinal() const {
-  return *this + DimensionGrid<dim>::Vecs::Cardinal();
-}
-
-template <size_t dim>
-std::vector<typename DimensionGrid<dim>::Point>
-DimensionGrid<dim>::Point::AdjacentWithDiagonal() const {
-  return *this + DimensionGrid<dim>::Vecs::CardinalAndDiagonal();
-}
-
-template <size_t dim>
-typename DimensionGrid<dim>::Point DimensionGrid<dim>::Hyperplane::Reflect(
-    const typename DimensionGrid<dim>::Point& p) const {
-  return p - 2 * (p - *this);
-}
 
 };  // namespace aoc2021
 
