@@ -291,9 +291,7 @@ class DimensionGrid {
       return os;
     }
 
-    Point Reflect(const Point& p) const {
-      return p - 2 * (p - *this);
-    }
+    Point Reflect(const Point& p) const { return p - 2 * (p - *this); }
   };
 
   struct Rotation {
@@ -325,7 +323,7 @@ class DimensionGrid {
 
       Rotation rot;
       rot.matrix[axis][axis] = 1;
-      switch(axis) {
+      switch (axis) {
         case 0:
           rot.matrix[1][1] = cos;
           rot.matrix[1][2] = -sin;
@@ -370,21 +368,32 @@ class DimensionGrid {
    public:
     Rotations() = delete;
 
-    static std::vector<Rotation> AllOrientations() {
+    static const std::array<Rotation, 24>& AllOrientations() {
       // Only 3D is currently supported.
       CHECK(dim == 3);
 
-      std::vector<Rotation> orientations;
+      static const std::array<Rotation, 24>* const orientations =
+          ComputeAllOrientations();
+      return *orientations;
+    }
+
+   private:
+    static const std::array<Rotation, 24>* ComputeAllOrientations() {
+      // Only 3D is currently supported.
+      CHECK(dim == 3);
+      auto orientations = new std::array<Rotation, 24>();
       for (int z_turns = 0; z_turns < 4; ++z_turns) {
         Rotation z_rot = Rotation::AboutAxis90(2, z_turns);
         for (int x_turns = 0; x_turns < 4; ++x_turns) {
-          orientations.emplace_back(z_rot * Rotation::AboutAxis90(0, x_turns));
+          (*orientations)[z_turns * 4 + x_turns] =
+              z_rot * Rotation::AboutAxis90(0, x_turns);
         }
       }
       for (int y_turns : {1, 3}) {
         Rotation y_rot = Rotation::AboutAxis90(1, y_turns);
         for (int x_turns = 0; x_turns < 4; ++x_turns) {
-          orientations.emplace_back(y_rot * Rotation::AboutAxis90(0, x_turns));
+          (*orientations)[16 + (y_turns == 3 ? 4 : 0) + x_turns] =
+              y_rot * Rotation::AboutAxis90(0, x_turns);
         }
       }
       return orientations;
