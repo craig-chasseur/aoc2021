@@ -28,7 +28,6 @@ class DimensionGrid {
 
   struct Vec;
   struct Rotation;
-  struct MultiRotation;
 
   struct Point {
     std::array<int64_t, dim> coords = {};
@@ -151,24 +150,17 @@ class DimensionGrid {
     }
 
     Vec& operator*=(const Rotation& rot) {
-      *this = Rotate90(rot.about_axis, rot.turns_90);
+      *this = *this * rot;
       return *this;
     }
 
     Vec operator*(const Rotation& rot) const {
-      return Rotate90(rot.about_axis, rot.turns_90);
-    }
-
-    Vec& operator*=(const MultiRotation& multi_rot) {
-      for (const Rotation& rot : multi_rot.rotations) {
-        *this = Rotate90(rot.about_axis, rot.turns_90);
+      Vec result;
+      for (size_t d = 0; d < dim; ++d) {
+        for (size_t k = 0; k < dim; ++k) {
+          result.deltas[d] += rot.matrix[d][k] * deltas[k];
+        }
       }
-      return *this;
-    }
-
-    Vec operator*(const MultiRotation& multi_rot) const {
-      Vec result(*this);
-      result *= multi_rot;
       return result;
     }
 
@@ -194,21 +186,6 @@ class DimensionGrid {
       }
       os << "}";
       return os;
-    }
-
-    Vec Rotate90(size_t about_axis, int turns) const {
-      // Only implemented in 3D for now.
-      CHECK(dim == 3);
-      Vec rotated(*this);
-      turns %= 4;
-      int64_t& first_dim = rotated.deltas[about_axis == 0 ? 1 : 0];
-      int64_t& second_dim = rotated.deltas[about_axis == 2 ? 1 : 2];
-      for (int t = 0; t < turns; ++t) {
-        const int64_t tmp = first_dim;
-        first_dim = second_dim;
-        second_dim = -tmp;
-      }
-      return rotated;
     }
 
     int64_t ManhattanDistance() const {
@@ -320,35 +297,94 @@ class DimensionGrid {
   };
 
   struct Rotation {
-    size_t about_axis = 0;
-    int turns_90 = 0;
-  };
+    std::array<std::array<int8_t, dim>, dim> matrix = {};
 
-  struct MultiRotation {
-    std::vector<Rotation> rotations;
+    static Rotation AboutAxis90(size_t axis, int turns) {
+      CHECK(dim == 3);
+      CHECK(axis < dim);
+
+      int8_t cos = 0;
+      int8_t sin = 0;
+      switch (turns % 4) {
+        case 0:
+          cos = 1;
+          sin = 0;
+          break;
+        case 1:
+          cos = 0;
+          sin = 1;
+          break;
+        case 2:
+          cos = -1;
+          sin = 0;
+          break;
+        case 3:
+          cos = 0;
+          sin = -1;
+      }
+
+      Rotation rot;
+      rot.matrix[axis][axis] = 1;
+      switch(axis) {
+        case 0:
+          rot.matrix[1][1] = cos;
+          rot.matrix[1][2] = -sin;
+          rot.matrix[2][1] = sin;
+          rot.matrix[2][2] = cos;
+          break;
+        case 1:
+          rot.matrix[0][0] = cos;
+          rot.matrix[0][2] = sin;
+          rot.matrix[2][0] = -sin;
+          rot.matrix[2][2] = cos;
+          break;
+        case 2:
+          rot.matrix[0][0] = cos;
+          rot.matrix[0][1] = -sin;
+          rot.matrix[1][0] = sin;
+          rot.matrix[1][1] = cos;
+          break;
+      }
+      return rot;
+    }
+
+    Rotation operator*(const Rotation& other) const {
+      Rotation product;
+      for (size_t row = 0; row < dim; ++row) {
+        for (size_t col = 0; col < dim; ++col) {
+          for (size_t k = 0; k < dim; ++k) {
+            product.matrix[row][col] += matrix[row][k] * other.matrix[k][col];
+          }
+        }
+      }
+      return product;
+    }
+
+    Rotation& operator*=(const Rotation& other) {
+      *this = *this * other;
+      return *this;
+    }
   };
 
   class Rotations {
    public:
     Rotations() = delete;
 
-    static std::vector<MultiRotation> AllOrientations() {
+    static std::vector<Rotation> AllOrientations() {
       // Only 3D is currently supported.
       CHECK(dim == 3);
 
-      std::vector<MultiRotation> orientations;
+      std::vector<Rotation> orientations;
       for (int z_turns = 0; z_turns < 4; ++z_turns) {
-        Rotation z_rot{.about_axis = 2, .turns_90 = z_turns};
+        Rotation z_rot = Rotation::AboutAxis90(2, z_turns);
         for (int x_turns = 0; x_turns < 4; ++x_turns) {
-          orientations.emplace_back(MultiRotation{.rotations{
-              z_rot, Rotation{.about_axis = 0, .turns_90 = x_turns}}});
+          orientations.emplace_back(z_rot * Rotation::AboutAxis90(0, x_turns));
         }
       }
       for (int y_turns : {1, 3}) {
-        Rotation y_rot{.about_axis = 1, .turns_90 = y_turns};
+        Rotation y_rot = Rotation::AboutAxis90(1, y_turns);
         for (int x_turns = 0; x_turns < 4; ++x_turns) {
-          orientations.emplace_back(MultiRotation{.rotations{
-              y_rot, Rotation{.about_axis = 0, .turns_90 = x_turns}}});
+          orientations.emplace_back(y_rot * Rotation::AboutAxis90(0, x_turns));
         }
       }
       return orientations;
@@ -375,17 +411,6 @@ class DimensionGrid {
     std::vector<Vec> result;
     for (const Vec& v : vecs) {
       result.emplace_back(v * rot);
-    }
-    return result;
-  }
-
-  template <typename VecContainer>
-  friend std::enable_if_t<
-      std::is_same_v<Vec, typename VecContainer::value_type>, std::vector<Vec>>
-  operator*(const VecContainer& vecs, const MultiRotation& multi_rot) {
-    std::vector<Vec> result;
-    for (const Vec& v : vecs) {
-      result.emplace_back(v * multi_rot);
     }
     return result;
   }
