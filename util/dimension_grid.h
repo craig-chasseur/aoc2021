@@ -244,16 +244,9 @@ class DimensionGrid {
    public:
     Vecs() = delete;
 
-    static std::vector<Vec> Cardinal() {
-      std::vector<Vec> cardinal;
-      for (size_t d = 0; d < dim; ++d) {
-        Vec minus, plus;
-        minus.deltas[d] = -1;
-        plus.deltas[d] = 1;
-        cardinal.emplace_back(std::move(minus));
-        cardinal.emplace_back(std::move(plus));
-      }
-      return cardinal;
+    static const std::array<Vec, dim * 2>& Cardinal() {
+      static const std::array<Vec, dim * 2>* const cardinal = ComputeCardinal();
+      return *cardinal;
     }
 
     static std::vector<Vec> CardinalAndDiagonal() {
@@ -275,6 +268,16 @@ class DimensionGrid {
         result = std::move(expanded_result);
       }
       return result;
+    }
+
+   private:
+    static const std::array<Vec, 2 * dim>* ComputeCardinal() {
+      auto cardinal = new std::array<Vec, 2 * dim>();
+      for (size_t d = 0; d < dim; ++d) {
+        (*cardinal)[d * 2].deltas[d] = -1;
+        (*cardinal)[d * 2 + 1].deltas[d] = 1;
+      }
+      return cardinal;
     }
   };
 
