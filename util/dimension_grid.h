@@ -70,9 +70,8 @@ class DimensionGrid {
       return result;
     }
 
-    friend Vec operator-(const typename DimensionGrid<dim>::Point& a,
-                         const typename DimensionGrid<dim>::Point& b) {
-      typename DimensionGrid<dim>::Vec diff;
+    friend Vec operator-(const Point& a, const Point& b) {
+      Vec diff;
       for (size_t d = 0; d < dim; ++d) {
         diff.deltas[d] = a.coords[d] - b.coords[d];
       }
@@ -90,11 +89,11 @@ class DimensionGrid {
     }
 
     std::vector<Point> AdjacentCardinal() const {
-      return *this + DimensionGrid<dim>::Vecs::Cardinal();
+      return *this + Vecs::Cardinal();
     }
 
     std::vector<Point> AdjacentWithDiagonal() const {
-      return *this + DimensionGrid<dim>::Vecs::CardinalAndDiagonal();
+      return *this + Vecs::CardinalAndDiagonal();
     }
 
     template <typename H>
