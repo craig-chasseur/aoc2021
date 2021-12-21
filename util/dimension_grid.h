@@ -297,7 +297,8 @@ class DimensionGrid {
     std::array<std::array<int8_t, dim>, dim> matrix = {};
 
     static Rotation AboutAxis90(size_t axis, int turns) {
-      CHECK(dim == 3);
+      // Only 3D supported right now.
+      static_assert(dim == 3);
       CHECK(axis < dim);
 
       int8_t cos = 0;
@@ -369,7 +370,7 @@ class DimensionGrid {
 
     static const std::array<Rotation, 24>& AllOrientations() {
       // Only 3D is currently supported.
-      CHECK(dim == 3);
+      static_assert(dim == 3);
 
       static const std::array<Rotation, 24>* const orientations =
           ComputeAllOrientations();
@@ -379,7 +380,7 @@ class DimensionGrid {
    private:
     static const std::array<Rotation, 24>* ComputeAllOrientations() {
       // Only 3D is currently supported.
-      CHECK(dim == 3);
+      static_assert(dim == 3);
       auto orientations = new std::array<Rotation, 24>();
       for (int z_turns = 0; z_turns < 4; ++z_turns) {
         Rotation z_rot = Rotation::AboutAxis90(2, z_turns);
