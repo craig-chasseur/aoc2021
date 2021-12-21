@@ -1,10 +1,21 @@
 #include <initializer_list>
+#include <string>
 #include <vector>
 
+#include "absl/strings/string_view.h"
+#include "re2/re2.h"
 #include "util/check.h"
 #include "util/io.h"
 
 namespace {
+
+int ParsePosition(absl::string_view line) {
+  static re2::LazyRE2 pattern{R"re(starting position: (\d+))re"};
+  int position = 0;
+  CHECK(re2::RE2::PartialMatch(line, *pattern, &position));
+  CHECK(position >= 1 && position <= 10);
+  return position - 1;
+}
 
 class Dice {
  public:
@@ -65,7 +76,9 @@ class GameState {
 }  // namespace
 
 int main(int argc, char** argv) {
-  GameState game({3, 2});
+  std::vector<std::string> lines = aoc2021::ReadLinesFromFile(argv[1]);
+  CHECK(lines.size() == 2);
+  GameState game({ParsePosition(lines.front()), ParsePosition(lines.back())});
   std::cout << game.PlayUntilWin() << "\n";
   return 0;
 }

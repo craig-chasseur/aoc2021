@@ -6,10 +6,19 @@
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
+#include "re2/re2.h"
 #include "util/check.h"
 #include "util/io.h"
 
 namespace {
+
+int ParsePosition(absl::string_view line) {
+  static re2::LazyRE2 pattern{R"re(starting position: (\d+))re"};
+  int position = 0;
+  CHECK(re2::RE2::PartialMatch(line, *pattern, &position));
+  CHECK(position >= 1 && position <= 10);
+  return position - 1;
+}
 
 struct PlayerState {
   int position = 0;
@@ -85,9 +94,12 @@ struct GreaterTotalScore {
 }  // namespace
 
 int main(int argc, char** argv) {
+  std::vector<std::string> lines = aoc2021::ReadLinesFromFile(argv[1]);
+  CHECK(lines.size() == 2);
+
   GameState game;
-  game.player1.position = 3;
-  game.player2.position = 2;
+  game.player1.position = ParsePosition(lines.front());
+  game.player2.position = ParsePosition(lines.back());
 
   absl::flat_hash_map<GameState, int64_t> game_to_universes{{game, 1}};
   absl::flat_hash_set<GameState> enqueued{game};
