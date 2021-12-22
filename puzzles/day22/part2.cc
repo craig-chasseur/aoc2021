@@ -63,38 +63,15 @@ int main(int argc, char** argv) {
     procedures.emplace_back(ParseProcedure(line));
   }
 
-  std::vector<Grid3::Orthotope> on_regions;
+  Grid3::MultiVolume on;
   for (const Procedure& procedure : procedures) {
     if (procedure.on) {
-      std::vector<Grid3::Orthotope> box_remainder{procedure.box};
-      for (const Grid3::Orthotope& region : on_regions) {
-        std::vector<Grid3::Orthotope> next_remainder;
-        for (const Grid3::Orthotope& remainder_segment : box_remainder) {
-          std::vector<Grid3::Orthotope> diff =
-              remainder_segment.SpatialDifference(region);
-          next_remainder.insert(next_remainder.end(), diff.begin(), diff.end());
-        }
-        box_remainder = std::move(next_remainder);
-        if (box_remainder.empty()) break;
-      }
-      on_regions.insert(on_regions.end(), box_remainder.begin(),
-                        box_remainder.end());
+      on += procedure.box;
     } else {
-      std::vector<Grid3::Orthotope> next_on_regions;
-      for (const Grid3::Orthotope& region : on_regions) {
-        std::vector<Grid3::Orthotope> diff =
-            region.SpatialDifference(procedure.box);
-        next_on_regions.insert(next_on_regions.end(), diff.begin(), diff.end());
-      }
-      on_regions = std::move(next_on_regions);
+      on -= procedure.box;
     }
   }
-
-  int64_t total_on = 0;
-  for (const Grid3::Orthotope& region : on_regions) {
-    total_on += region.HyperVolumeInclusive();
-  }
-  std::cout << total_on << "\n";
+  std::cout << on.HyperVolumeInclusive() << "\n";
 
   return 0;
 }

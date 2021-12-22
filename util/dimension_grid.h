@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <functional>
+#include <iterator>
 #include <limits>
 #include <numeric>
 #include <optional>
@@ -30,6 +31,7 @@ class DimensionGrid {
 
   struct Vec;
   struct Rotation;
+  class MultiVolume;
 
   struct Point {
     std::array<int64_t, dim> coords = {};
@@ -505,25 +507,25 @@ class DimensionGrid {
       return intersection;
     }
 
-    std::vector<Orthotope> SpatialDifference(const Orthotope& sub) const {
+    MultiVolume SpatialDifference(const Orthotope& sub) const {
       std::optional<Orthotope> intersection = Intersection(sub);
-      if (!intersection.has_value()) return {*this};
-      if (*intersection == *this) return {};
+      if (!intersection.has_value()) return MultiVolume(*this);
+      if (*intersection == *this) return MultiVolume();
 
       Orthotope remainder = *this;
-      std::vector<Orthotope> slices;
+      MultiVolume slices;
       for (size_t d = 0; d < dim; ++d) {
         if (remainder.min_point.coords[d] < intersection->min_point.coords[d]) {
           Orthotope slice(remainder);
           slice.max_point.coords[d] = intersection->min_point.coords[d] - 1;
-          slices.emplace_back(slice);
+          slices.regions_.emplace_back(std::move(slice));
           remainder.min_point.coords[d] = intersection->min_point.coords[d];
         }
         if (remainder.HyperVolumeInclusive() <= 0) break;
         if (remainder.max_point.coords[d] > intersection->max_point.coords[d]) {
           Orthotope slice(remainder);
           slice.min_point.coords[d] = intersection->max_point.coords[d] + 1;
-          slices.emplace_back(slice);
+          slices.regions_.emplace_back(std::move(slice));
           remainder.max_point.coords[d] = intersection->max_point.coords[d];
         }
         if (remainder.HyperVolumeInclusive() <= 0) break;
@@ -535,22 +537,28 @@ class DimensionGrid {
       return slices;
     }
 
-    std::vector<Orthotope> Union(const Orthotope& other) const {
+    MultiVolume Union(const Orthotope& other) const {
+      MultiVolume result;
+
       std::optional<Orthotope> intersection = Intersection(other);
-      if (!intersection.has_value()) return {*this, other};
+      if (!intersection.has_value()) {
+        result.regions_ = {*this, other};
+        return result;
+      }
 
       const bool other_larger =
           other.HyperVolumeInclusive() > HyperVolumeInclusive();
-      std::vector<Orthotope> all;
       if (other_larger) {
-        all.emplace_back(other);
+        result.regions_.emplace_back(other);
       } else {
-        all.emplace_back(*this);
+        result.regions_.emplace_back(*this);
       }
       const Orthotope& smaller = other_larger ? *this : other;
-      std::vector<Orthotope> diff = smaller.SpatialDifference(*intersection);
-      all.insert(all.end(), diff.begin(), diff.end());
-      return all;
+      MultiVolume diff = smaller.SpatialDifference(*intersection);
+      result.regions_.insert(result.regions_.end(),
+                             std::make_move_iterator(diff.regions_.begin()),
+                             std::make_move_iterator(diff.regions_.end()));
+      return result;
     }
 
     const_iterator cbegin() const { return const_iterator(min_point, this); }
@@ -568,6 +576,94 @@ class DimensionGrid {
       return const_iterator(beyond, this);
     }
     const_iterator end() const { return cend(); }
+  };
+
+  class MultiVolume {
+   public:
+    MultiVolume() = default;
+    explicit MultiVolume(Orthotope ortho) : regions_{std::move(ortho)} {}
+
+    bool empty() const { return regions_.empty(); }
+
+    MultiVolume& operator+=(const Orthotope& ortho) {
+      if (regions_.empty()) {
+        regions_.emplace_back(ortho);
+        return *this;
+      }
+      std::vector<Orthotope> remainder{ortho};
+      for (const Orthotope& region : regions_) {
+        std::vector<Orthotope> next_remainder;
+        for (const Orthotope& remainder_region : remainder) {
+          MultiVolume diff = remainder_region.SpatialDifference(region);
+          next_remainder.insert(next_remainder.end(),
+                                std::make_move_iterator(diff.regions_.begin()),
+                                std::make_move_iterator(diff.regions_.end()));
+        }
+        remainder = std::move(next_remainder);
+        if (remainder.empty()) break;
+      }
+      regions_.insert(regions_.end(),
+                      std::make_move_iterator(remainder.begin()),
+                      std::make_move_iterator(remainder.end()));
+      return *this;
+    }
+
+    MultiVolume operator+(const Orthotope& ortho) const {
+      MultiVolume result(*this);
+      result += ortho;
+      return result;
+    }
+
+    MultiVolume operator-(const Orthotope& ortho) const {
+      MultiVolume result;
+      for (const Orthotope& region : regions_) {
+        MultiVolume diff = region.SpatialDifference(ortho);
+        result.regions_.insert(result.regions_.end(),
+                               std::make_move_iterator(diff.regions_.begin()),
+                               std::make_move_iterator(diff.regions_.end()));
+      }
+      return result;
+    }
+
+    MultiVolume& operator-=(const Orthotope& ortho) {
+      *this = *this - ortho;
+      return *this;
+    }
+
+    int64_t HyperVolume() const {
+      return std::accumulate(regions_.begin(), regions_.end(), int64_t{0},
+                             [](int64_t sum, const Orthotope& region) {
+                               return sum + region.HyperVolume();
+                             });
+    }
+
+    int64_t HyperVolumeInclusive() const {
+      return std::accumulate(regions_.begin(), regions_.end(), int64_t{0},
+                             [](int64_t sum, const Orthotope& region) {
+                               return sum + region.HyperVolumeInclusive();
+                             });
+    }
+
+    bool Contains(const Point& p) const {
+      for (const Orthotope& region : regions_) {
+        if (region.Contains(p)) return true;
+      }
+      return false;
+    }
+
+    template <typename PointContainer>
+    std::vector<Point> FilterContains(const PointContainer& points) const {
+      std::vector<Point> filtered;
+      for (const Point& point : points) {
+        if (Contains(point)) filtered.emplace_back(point);
+      }
+      return filtered;
+    }
+
+   private:
+    friend class Orthotope;
+
+    std::vector<Orthotope> regions_;
   };
 
   // Arithmetic between Points and Vecs.
