@@ -206,6 +206,76 @@ struct Line {
   Point Reflect(const Point& p) const;
 };
 
+struct Rectangle {
+  // Rectangle is inclusive of both points.
+  Point min_point;
+  Point max_point;
+
+  class iterator {
+   public:
+    using iterator_category = std::input_iterator_tag;
+    using difference_type = std::ptrdiff_t;
+    using value_type = Point;
+    using pointer = const Point*;
+    using reference = const Point&;
+
+    iterator() = default;
+
+    reference operator*() const { return current_; }
+    pointer operator->() const { return &current_; }
+
+    iterator& operator++() {
+      if (++current_.x == rect_->max_point.x + 1) {
+        ++current_.y;
+        current_.x = rect_->min_point.x;
+      }
+      return *this;
+    }
+
+    iterator operator++(int) const {
+      iterator tmp(*this);
+      ++tmp;
+      return tmp;
+    }
+
+    bool operator==(const iterator& other) const {
+      return current_ == other.current_ && rect_ == other.rect_;
+    }
+
+   private:
+    friend class Rectangle;
+
+    explicit iterator(Point current, const Rectangle* rect)
+        : current_(current), rect_(rect) {}
+
+    Point current_;
+    const Rectangle* rect_ = nullptr;
+  };
+  using const_iterator = iterator;
+
+  Vec Diagonal() const;
+
+  int64_t Area() const {
+    const Vec diag = Diagonal();
+    return diag.dx * diag.dy;
+  }
+
+  bool Contains(const Point& p) const {
+    return p.x >= min_point.x && p.x <= max_point.x && p.y >= min_point.y &&
+           p.y <= max_point.y;
+  }
+
+  const_iterator cbegin() const {
+    return const_iterator(min_point, this);
+  }
+  const_iterator begin() const { return cbegin(); }
+
+  const_iterator cend() const {
+    return const_iterator(Point{.x = min_point.x, .y = max_point.y + 1}, this);
+  }
+  const_iterator end() const { return cend(); }
+};
+
 // Printing.
 inline std::ostream& operator<<(std::ostream& os, const Point& p) {
   os << "(" << p.x << ", " << p.y << ")";
@@ -284,6 +354,10 @@ inline Vec operator*(const int64_t factor, const Vec& vec) {
 }
 
 inline Point Line::Reflect(const Point& p) const { return p - 2 * (p - *this); }
+
+inline Vec Rectangle::Diagonal() const {
+  return max_point - min_point;
+}
 
 // A dense two-dimensional grid of 'T' values. Cells are addressable as points.
 template <typename T = int>
@@ -545,6 +619,15 @@ Point MaxDimensions(const PointContainer& container) {
     max.y = std::max(max.y, point.y);
   }
   return max;
+}
+
+template <typename PointContainer>
+Rectangle BoundingBox(const PointContainer& container) {
+  Rectangle box;
+  if (container.empty()) return box;
+  box.min_point = MinDimensions(container);
+  box.max_point = MaxDimensions(container);
+  return box;
 }
 
 // Renders a set of points, returning a multiline ASCII string where points are

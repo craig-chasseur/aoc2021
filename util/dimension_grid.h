@@ -7,6 +7,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
+#include <functional>
 #include <limits>
 #include <numeric>
 #include <ostream>
@@ -245,7 +246,7 @@ class DimensionGrid {
     Vecs() = delete;
 
     static const std::array<Vec, dim * 2>& Cardinal() {
-      static const std::array<Vec, dim * 2>* const cardinal = ComputeCardinal();
+      static const std::array<Vec, dim* 2>* const cardinal = ComputeCardinal();
       return *cardinal;
     }
 
@@ -403,6 +404,82 @@ class DimensionGrid {
     }
   };
 
+  struct Orthotope {
+    Point min_point;
+    Point max_point;
+
+    class iterator {
+     public:
+      using iterator_category = std::input_iterator_tag;
+      using difference_type = std::ptrdiff_t;
+      using value_type = Point;
+      using pointer = const Point*;
+      using reference = const Point&;
+
+      iterator() = default;
+
+      reference operator*() const { return current_; }
+      pointer operator->() const { return &current_; }
+
+      iterator& operator++() {
+        for (size_t d = 0; d < dim; ++d) {
+          if (++current_.coords[d] <= rect_->max_point.coords[d]) {
+            break;
+          }
+          if (d == dim - 1) break;
+          current_.coords[d] = rect_->min_point[d];
+        }
+        return *this;
+      }
+
+      iterator operator++(int) const {
+        iterator tmp(*this);
+        ++tmp;
+        return tmp;
+      }
+
+      bool operator==(const iterator& other) const {
+        return current_ == other.current_ && rect_ == other.rect_;
+      }
+
+     private:
+      friend class Rectangle;
+
+      explicit iterator(Point current, const Orthotope* rect)
+          : current_(current), rect_(rect) {}
+
+      Point current_;
+      const Orthotope* rect_ = nullptr;
+    };
+    using const_iterator = iterator;
+
+    Vec Diagonal() const { return max_point - min_point; }
+
+    int64_t HyperVolume() const {
+      const Vec diag = Diagonal();
+      return std::accumulate(diag.deltas.begin(), diag.deltas.end(), int64_t{1},
+                             std::multiplies<int64_t>());
+    }
+
+    bool Contains(const Point& p) const {
+      for (size_t d = 0; d < dim; ++d) {
+        if (p.coords[d] < min_point.coords[d]) return false;
+        if (p.coords[d] > max_point.coords[d]) return false;
+      }
+      return true;
+    }
+
+    const_iterator cbegin() const { return const_iterator(min_point, this); }
+    const_iterator begin() const { return cbegin(); }
+
+    const_iterator cend() const {
+      Point beyond(max_point);
+      ++beyond.coords[dim - 1];
+      return const_iterator(beyond, this);
+    }
+    const_iterator end() const { return cend(); }
+  };
+
   // Arithmetic between Points and Vecs.
   template <typename VecContainer>
   std::enable_if_t<std::is_same_v<Vec, typename VecContainer::value_type>,
@@ -461,6 +538,15 @@ class DimensionGrid {
       }
     }
     return max;
+  }
+
+  template <typename PointContainer>
+  static Orthotope BoundingBox(const PointContainer& container) {
+    Orthotope box;
+    if (container.empty()) return box;
+    box.min_point = MinDimensions(container);
+    box.max_point = MaxDimensions(container);
+    return box;
   }
 };
 
