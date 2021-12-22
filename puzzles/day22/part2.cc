@@ -4,7 +4,6 @@
 #include <string>
 #include <vector>
 
-#include "absl/container/flat_hash_set.h"
 #include "absl/strings/string_view.h"
 #include "re2/re2.h"
 #include "util/check.h"
@@ -18,20 +17,6 @@ namespace {
 struct Procedure {
   Grid3::Orthotope box;
   bool on = false;
-
-  std::optional<Procedure> Clamp() const {
-    Procedure clamped;
-    clamped.on = on;
-    for (size_t d = 0; d < 3; ++d) {
-      if (box.min_point.coords[d] > 50) return std::nullopt;
-      if (box.max_point.coords[d] < -50) return std::nullopt;
-      clamped.box.min_point.coords[d] =
-          std::max(box.min_point.coords[d], int64_t{-50});
-      clamped.box.max_point.coords[d] =
-          std::min(box.max_point.coords[d], int64_t{50});
-    }
-    return clamped;
-  }
 };
 
 Procedure ParseProcedure(absl::string_view line) {

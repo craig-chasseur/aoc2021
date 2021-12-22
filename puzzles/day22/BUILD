@@ -18,7 +18,6 @@ cc_binary(
     srcs = ["part2.cc"],
     deps = [
         "@com_googlesource_code_re2//:re2",
-        "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/strings",
         "//util:check",
         "//util:dimension_grid",
