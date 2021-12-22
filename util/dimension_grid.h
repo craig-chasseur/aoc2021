@@ -580,6 +580,58 @@ class DimensionGrid {
 
   class MultiVolume {
    public:
+    class iterator {
+     public:
+      using iterator_category = std::input_iterator_tag;
+      using difference_type = std::ptrdiff_t;
+      using value_type = Point;
+      using pointer = const Point*;
+      using reference = const Point&;
+
+      iterator() = default;
+
+      reference operator*() const { return *inner_; }
+      pointer operator->() const { return &*inner_; }
+
+      iterator& operator++() {
+        if (++inner_ == outer_->end()) {
+          if (++outer_ == outer_end_) {
+            inner_ = Orthotope::iterator();
+          } else {
+            inner_ = outer_->begin();
+          }
+        }
+        return *this;
+      }
+
+      iterator operator++(int) const {
+        iterator tmp(*this);
+        ++tmp;
+        return tmp;
+      }
+
+      bool operator==(const iterator& other) const {
+        return outer_ == other.outer_ && inner_ == other.inner_;
+      }
+
+     private:
+      friend class MultiVolume;
+
+      explicit iterator(
+          typename std::vector<Orthotope>::const_iterator outer,
+          typename std::vector<Orthotope>::const_iterator outer_end)
+          : outer_(std::move(outer)), outer_end_(std::move(outer_end)) {
+        if (outer_ != outer_end_) {
+          inner_ = outer->begin();
+        }
+      }
+
+      typename std::vector<Orthotope>::const_iterator outer_;
+      typename std::vector<Orthotope>::const_iterator outer_end_;
+      typename Orthotope::iterator inner_;
+    };
+    using const_iterator = iterator;
+
     MultiVolume() = default;
     explicit MultiVolume(Orthotope ortho) : regions_{std::move(ortho)} {}
 
@@ -659,6 +711,16 @@ class DimensionGrid {
       }
       return filtered;
     }
+
+    const_iterator cbegin() const {
+      return const_iterator(regions_.begin(), regions_.end());
+    }
+    const_iterator begin() const { return cbegin(); }
+
+    const_iterator cend() const {
+      return const_iterator(regions_.end(), regions_.end());
+    }
+    const_iterator end() const { return cend(); }
 
    private:
     friend class Orthotope;
