@@ -10,6 +10,7 @@
 #include <functional>
 #include <limits>
 #include <numeric>
+#include <optional>
 #include <ostream>
 #include <type_traits>
 #include <utility>
@@ -453,10 +454,23 @@ class DimensionGrid {
     };
     using const_iterator = iterator;
 
+    bool operator==(const Orthotope& other) const {
+      return min_point == other.min_point && max_point == other.max_point;
+    }
+
     Vec Diagonal() const { return max_point - min_point; }
 
     int64_t HyperVolume() const {
       const Vec diag = Diagonal();
+      return std::accumulate(diag.deltas.begin(), diag.deltas.end(), int64_t{1},
+                             std::multiplies<int64_t>());
+    }
+
+    int64_t HyperVolumeInclusive() const {
+      Vec diag = Diagonal();
+      for (size_t d = 0; d < dim; ++d) {
+        ++diag.deltas[d];
+      }
       return std::accumulate(diag.deltas.begin(), diag.deltas.end(), int64_t{1},
                              std::multiplies<int64_t>());
     }
@@ -476,6 +490,67 @@ class DimensionGrid {
         if (Contains(point)) filtered.emplace_back(point);
       }
       return filtered;
+    }
+
+    std::optional<Orthotope> Intersection(const Orthotope& other) const {
+      Orthotope intersection;
+      for (size_t d = 0; d < dim; ++d) {
+        intersection.min_point.coords[d] =
+            std::max(min_point.coords[d], other.min_point.coords[d]);
+        intersection.max_point.coords[d] =
+            std::min(max_point.coords[d], other.max_point.coords[d]);
+        if (intersection.min_point.coords[d] > intersection.max_point.coords[d])
+          return std::nullopt;
+      }
+      return intersection;
+    }
+
+    std::vector<Orthotope> SpatialDifference(const Orthotope& sub) const {
+      std::optional<Orthotope> intersection = Intersection(sub);
+      if (!intersection.has_value()) return {*this};
+      if (*intersection == *this) return {};
+
+      Orthotope remainder = *this;
+      std::vector<Orthotope> slices;
+      for (size_t d = 0; d < dim; ++d) {
+        if (remainder.min_point.coords[d] < intersection->min_point.coords[d]) {
+          Orthotope slice(remainder);
+          slice.max_point.coords[d] = intersection->min_point.coords[d] - 1;
+          slices.emplace_back(slice);
+          remainder.min_point.coords[d] = intersection->min_point.coords[d];
+        }
+        if (remainder.HyperVolumeInclusive() <= 0) break;
+        if (remainder.max_point.coords[d] > intersection->max_point.coords[d]) {
+          Orthotope slice(remainder);
+          slice.min_point.coords[d] = intersection->max_point.coords[d] + 1;
+          slices.emplace_back(slice);
+          remainder.max_point.coords[d] = intersection->max_point.coords[d];
+        }
+        if (remainder.HyperVolumeInclusive() <= 0) break;
+      }
+
+      if (remainder.HyperVolumeInclusive() > 0) {
+        CHECK(remainder == *intersection);
+      }
+      return slices;
+    }
+
+    std::vector<Orthotope> Union(const Orthotope& other) const {
+      std::optional<Orthotope> intersection = Intersection(other);
+      if (!intersection.has_value()) return {*this, other};
+
+      const bool other_larger =
+          other.HyperVolumeInclusive() > HyperVolumeInclusive();
+      std::vector<Orthotope> all;
+      if (other_larger) {
+        all.emplace_back(other);
+      } else {
+        all.emplace_back(*this);
+      }
+      const Orthotope& smaller = other_larger ? *this : other;
+      std::vector<Orthotope> diff = smaller.SpatialDifference(*intersection);
+      all.insert(all.end(), diff.begin(), diff.end());
+      return all;
     }
 
     const_iterator cbegin() const { return const_iterator(min_point, this); }
