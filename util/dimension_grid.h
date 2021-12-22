@@ -469,6 +469,15 @@ class DimensionGrid {
       return true;
     }
 
+    template <typename PointContainer>
+    std::vector<Point> FilterContains(const PointContainer& points) const {
+      std::vector<Point> filtered;
+      for (const Point& point : points) {
+        if (Contains(point)) filtered.emplace_back(point);
+      }
+      return filtered;
+    }
+
     const_iterator cbegin() const { return const_iterator(min_point, this); }
     const_iterator begin() const { return cbegin(); }
 
