@@ -459,7 +459,7 @@ class Grid {
     pointer operator->() const { return &current_; }
 
     PointIterator& operator++() {
-      if (++current_.y == grid_->XSize()) {
+      if (++current_.y == grid_->YSize(current_.x)) {
         ++current_.x;
         current_.y = 0;
       }
