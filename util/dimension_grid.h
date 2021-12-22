@@ -427,7 +427,7 @@ class DimensionGrid {
             break;
           }
           if (d == dim - 1) break;
-          current_.coords[d] = rect_->min_point[d];
+          current_.coords[d] = rect_->min_point.coords[d];
         }
         return *this;
       }
@@ -443,7 +443,7 @@ class DimensionGrid {
       }
 
      private:
-      friend class Rectangle;
+      friend class Orthotope;
 
       explicit iterator(Point current, const Orthotope* rect)
           : current_(current), rect_(rect) {}
@@ -482,8 +482,14 @@ class DimensionGrid {
     const_iterator begin() const { return cbegin(); }
 
     const_iterator cend() const {
-      Point beyond(max_point);
-      ++beyond.coords[dim - 1];
+      Point beyond;
+      for (size_t d = 0; d < dim; ++d) {
+        if (d == dim - 1) {
+          beyond.coords[d] = max_point.coords[d] + 1;
+        } else {
+          beyond.coords[d] = min_point.coords[d];
+        }
+      }
       return const_iterator(beyond, this);
     }
     const_iterator end() const { return cend(); }
