@@ -2,6 +2,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <iostream>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -13,6 +14,23 @@
 namespace {
 
 enum class Cell : char { kEmpty = 0, kA, kB, kC, kD };
+
+Cell ParseCell(const char c) {
+  switch (c) {
+    case '.':
+      return Cell::kEmpty;
+    case 'A':
+      return Cell::kA;
+    case 'B':
+      return Cell::kB;
+    case 'C':
+      return Cell::kC;
+    case 'D':
+      return Cell::kD;
+    default:
+      CHECK_FAIL();
+  }
+}
 
 int RoomPosition(const Cell cell) {
   switch (cell) {
@@ -189,12 +207,6 @@ struct State {
   }
 };
 
-constexpr State kInitialState{.hallway = {},
-                              .room_a = {Cell::kB, Cell::kC},
-                              .room_b = {Cell::kA, Cell::kD},
-                              .room_c = {Cell::kB, Cell::kD},
-                              .room_d = {Cell::kC, Cell::kA}};
-
 constexpr State kGoalState{.hallway = {},
                            .room_a = {Cell::kA, Cell::kA},
                            .room_b = {Cell::kB, Cell::kB},
@@ -204,6 +216,15 @@ constexpr State kGoalState{.hallway = {},
 }  // namespace
 
 int main(int argc, char** argv) {
+  std::vector<std::string> lines = aoc2021::ReadLinesFromFile(argv[1]);
+  CHECK(lines.size() == 5);
+  State initial_state{
+      .hallway = {},
+      .room_a = {ParseCell(lines[2][3]), ParseCell(lines[3][3])},
+      .room_b = {ParseCell(lines[2][5]), ParseCell(lines[3][5])},
+      .room_c = {ParseCell(lines[2][7]), ParseCell(lines[3][7])},
+      .room_d = {ParseCell(lines[2][9]), ParseCell(lines[3][9])}};
+
   absl::flat_hash_map<State, std::vector<State>> successors;
   absl::flat_hash_map<std::pair<State, State>, int64_t> edge_costs;
 
@@ -238,7 +259,7 @@ int main(int argc, char** argv) {
     return cost_it->second;
   };
 
-  auto path = aoc2021::AStar(kInitialState, kGoalState, get_adjacent, get_cost);
+  auto path = aoc2021::AStar(initial_state, kGoalState, get_adjacent, get_cost);
   CHECK(path.has_value());
   std::cout << path->cost << "\n";
 
