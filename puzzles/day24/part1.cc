@@ -1,4 +1,8 @@
+#include <bits/stdint-intn.h>
+
+#include <algorithm>
 #include <array>
+#include <bit>
 #include <cstddef>
 #include <cstdint>
 #include <deque>
@@ -8,6 +12,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <utility>
 #include <variant>
 #include <vector>
 
@@ -125,6 +130,22 @@ std::deque<int> FindLargestModelNum(const std::vector<std::string>& program) {
 }
 */
 
+constexpr std::array<int64_t, 14> kTens{
+  INT64_C(10000000000000),
+  INT64_C(1000000000000),
+  INT64_C(100000000000),
+  INT64_C(10000000000),
+  INT64_C(1000000000),
+  INT64_C(100000000),
+  INT64_C(10000000),
+  INT64_C(1000000),
+  INT64_C(100000),
+  INT64_C(10000),
+  INT64_C(1000),
+  INT64_C(100),
+  INT64_C(10),
+  INT64_C(1)};
+
 struct Num {
   std::array<int8_t, 14> digits;
 
@@ -208,13 +229,28 @@ class Expr {
 
   std::uint16_t DigitMask() const { return digit_mask_; }
 
+  virtual std::optional<std::pair<int64_t, int64_t>> ValueRange() const = 0;
+
+  const absl::flat_hash_set<int64_t>& PossibleValues() const {
+    if (possible_values_memo_.has_value()) return *possible_values_memo_;
+    possible_values_memo_ = PossibleValuesImpl();
+    return *possible_values_memo_;
+  }
+
+  virtual absl::flat_hash_set<int64_t> PossibleValuesImpl() const = 0;
+
+  void PurgePossibleValuesMemo() { possible_values_memo_ = std::nullopt; }
+
  protected:
   mutable absl::flat_hash_map<Num, int64_t> masked_input_to_value_;
+
+  mutable std::optional<absl::flat_hash_set<int64_t>> possible_values_memo_;
 
   std::uint16_t digit_mask_ = 0;
 };
 
 void TrySimplify(std::shared_ptr<Expr>& expr) {
+//  return;
   std::shared_ptr<Expr> simplified = expr->Simplify();
   if (simplified != nullptr) {
     expr = std::move(simplified);
@@ -241,6 +277,14 @@ class LiteralExpr : public Expr {
   int64_t value() const { return value_; }
 
   int64_t EvalImpl(const Num& input) const override { return value_; }
+
+  std::optional<std::pair<int64_t, int64_t>> ValueRange() const override {
+    return std::make_pair(value_, value_);
+  }
+
+  absl::flat_hash_set<int64_t> PossibleValuesImpl() const override {
+    return {value_};
+  }
 
  private:
   int64_t value_ = 0;
@@ -269,8 +313,24 @@ class InputExpr : public Expr {
     return input.digits[input_idx_];
   }
 
+  std::optional<std::pair<int64_t, int64_t>> ValueRange() const override {
+    return std::pair<int64_t, int64_t>(1, 9);
+  }
+
+  absl::flat_hash_set<int64_t> PossibleValuesImpl() const override {
+    if (tentative_value_.has_value()) return {*tentative_value_};
+    return {1, 2, 3, 4, 5, 6, 7, 8, 9};
+  }
+
+  void SetTentativeValue(std::optional<int64_t> tentative_value) {
+    tentative_value_ = tentative_value;
+  }
+
+  int64_t FinalizeTentative() const { return tentative_value_.value_or(9); }
+
  private:
   int input_idx_ = 0;
+  std::optional<int64_t> tentative_value_;
 };
 
 class AddExpr : public Expr {
@@ -336,6 +396,19 @@ class AddExpr : public Expr {
     }
 
     if (add_args.empty()) {
+      if (literal_ != nullptr && literal_->value() == 0) {
+        switch (non_add_args.size()) {
+          case 0:
+            CHECK_FAIL();
+          case 1:
+            return non_add_args.front();
+          default:
+            auto reduced_add = std::shared_ptr<AddExpr>(new AddExpr);
+            reduced_add->non_literal_ = std::move(non_add_args);
+            reduced_add->CalculateDigitMask();
+            return reduced_add;
+        }
+      }
       return nullptr;
     }
 
@@ -356,6 +429,10 @@ class AddExpr : public Expr {
                                      add_arg->non_literal_.begin(),
                                      add_arg->non_literal_.end());
     }
+    if (fused_add->literal_ != nullptr && fused_add->literal_->value() == 0) {
+      fused_add->literal_ = nullptr;
+    }
+    fused_add->CalculateDigitMask();
     return fused_add;
   }
 
@@ -404,8 +481,50 @@ class AddExpr : public Expr {
     }
   }
 
+  std::optional<std::pair<int64_t, int64_t>> ValueRange() const override {
+    std::int64_t min_sum = 0;
+    std::int64_t max_sum = 0;
+    if (literal_) {
+      min_sum = max_sum = literal_->value();
+    }
+    for (const auto& non_literal : non_literal_) {
+      auto range = non_literal->ValueRange();
+      if (!range.has_value()) return std::nullopt;
+      min_sum += range->first;
+      max_sum += range->second;
+    }
+    CHECK(min_sum <= max_sum);
+    return std::make_pair(min_sum, max_sum);
+  }
+
+  absl::flat_hash_set<int64_t> PossibleValuesImpl() const override {
+    absl::flat_hash_set<int64_t> sums = {
+        literal_ == nullptr ? 0 : literal_->value()};
+    for (const auto& non_literal : non_literal_) {
+      absl::flat_hash_set<int64_t> sums_expanded;
+      for (const int64_t val : non_literal->PossibleValues()) {
+        for (const int64_t previous_sum : sums) {
+          sums_expanded.insert(previous_sum + val);
+        }
+      }
+      sums = std::move(sums_expanded);
+    }
+    return sums;
+  }
+
+  std::shared_ptr<Expr> DistributeMul(int64_t factor) const;
+  std::shared_ptr<Expr> DistributeDiv(int64_t factor) const;
+  std::shared_ptr<Expr> DistributeMod(int64_t mod) const;
+
  private:
   AddExpr() = default;
+
+  void CalculateDigitMask() {
+    digit_mask_ = 0;
+    for (const auto& non_literal : non_literal_) {
+      digit_mask_ |= non_literal->DigitMask();
+    }
+  }
 
   std::shared_ptr<LiteralExpr> literal_;  // May be null.
   std::vector<std::shared_ptr<Expr>> non_literal_;
@@ -458,8 +577,16 @@ class MulExpr : public Expr {
   virtual const MulExpr* AsMul() const override { return this; }
 
   std::shared_ptr<Expr> Simplify() const override {
-    if (literal_ != nullptr && non_literal_.empty()) {
-      return literal_;
+    if (literal_ != nullptr) {
+      if (literal_->value() == 0 || non_literal_.empty()) return literal_;
+
+      // Distribute multiplication by a constant over addition.
+      if (non_literal_.size() == 1) {
+        const AddExpr* right_add = non_literal_.front()->AsAdd();
+        if (right_add != nullptr) {
+          return right_add->DistributeMul(literal_->value());
+        }
+      }
     }
 
     std::vector<std::shared_ptr<Expr>> non_mul_args;
@@ -474,6 +601,19 @@ class MulExpr : public Expr {
     }
 
     if (mul_args.empty()) {
+      if (literal_ != nullptr && literal_->value() == 1) {
+        switch (non_mul_args.size()) {
+          case 0:
+            CHECK_FAIL();
+          case 1:
+            return non_mul_args.front();
+          default:
+            auto reduced_mul = std::shared_ptr<MulExpr>(new MulExpr);
+            reduced_mul->non_literal_ = std::move(non_mul_args);
+            reduced_mul->CalculateDigitMask();
+            return reduced_mul;
+        }
+      }
       return nullptr;
     }
 
@@ -494,6 +634,15 @@ class MulExpr : public Expr {
                                      mul_arg->non_literal_.begin(),
                                      mul_arg->non_literal_.end());
     }
+    if (fused_mul->literal_ != nullptr) {
+      if (fused_mul->literal_->value() == 0) {
+        return fused_mul->literal_;
+      }
+      if (fused_mul->literal_->value() == 1) {
+        fused_mul->literal_ = nullptr;
+      }
+    }
+    fused_mul->CalculateDigitMask();
     return fused_mul;
   }
 
@@ -542,12 +691,130 @@ class MulExpr : public Expr {
     }
   }
 
+  std::optional<std::pair<int64_t, int64_t>> ValueRange() const override {
+    int64_t min_prod = 1;
+    int64_t max_prod = 1;
+
+    if (literal_ != nullptr) {
+      min_prod = literal_->value();
+      max_prod = literal_->value();
+    }
+    for (const auto& non_literal : non_literal_) {
+      auto non_literal_range = non_literal->ValueRange();
+      if (!non_literal_range.has_value()) return std::nullopt;
+      std::array<int64_t, 4> prods = {min_prod * non_literal_range->first,
+                                      min_prod * non_literal_range->second,
+                                      max_prod * non_literal_range->first,
+                                      max_prod * non_literal_range->second};
+      auto minmax_elt = std::minmax_element(prods.begin(), prods.end());
+      min_prod = *minmax_elt.first;
+      max_prod = *minmax_elt.second;
+    }
+    return std::make_pair(min_prod, max_prod);
+  }
+
+  absl::flat_hash_set<int64_t> PossibleValuesImpl() const override {
+    absl::flat_hash_set<int64_t> prods = {
+        literal_ == nullptr ? 1 : literal_->value()};
+    for (const auto& non_literal : non_literal_) {
+      absl::flat_hash_set<int64_t> prods_expanded;
+      for (const int64_t val : non_literal->PossibleValues()) {
+        for (const int64_t previous_prod : prods) {
+          prods_expanded.insert(previous_prod * val);
+        }
+      }
+      prods = std::move(prods_expanded);
+    }
+    return prods;
+  }
+
+  std::shared_ptr<Expr> DivideLiteral(int64_t divisor) const {
+    if (literal_ == nullptr) return nullptr;
+    if (literal_->value() % divisor != 0) return nullptr;
+    const int64_t new_lit = literal_->value() / divisor;
+
+    std::shared_ptr<Expr> new_expr;
+    switch (new_lit) {
+      case 0:
+        new_expr = std::make_shared<LiteralExpr>(0);
+        break;
+      case 1:
+        if (non_literal_.size() == 1) {
+          new_expr = non_literal_.front();
+        } else {
+          std::shared_ptr<MulExpr> new_mul(new MulExpr);
+          new_mul->non_literal_ = non_literal_;
+          new_mul->CalculateDigitMask();
+          new_expr = std::move(new_mul);
+        }
+        break;
+      default: {
+        std::shared_ptr<MulExpr> new_mul(new MulExpr);
+        new_mul->literal_ = std::make_shared<LiteralExpr>(new_lit);
+        new_mul->non_literal_ = non_literal_;
+        new_mul->CalculateDigitMask();
+        new_expr = std::move(new_mul);
+      }
+    }
+    CHECK(new_expr != nullptr);
+    std::shared_ptr<Expr> new_expr_simplified = new_expr->Simplify();
+    if (new_expr_simplified != nullptr) return new_expr_simplified;
+    return new_expr;
+  }
+
+  const std::shared_ptr<LiteralExpr>& LiteralFactor() const { return literal_; }
+
  private:
   MulExpr() = default;
+
+  void CalculateDigitMask() {
+    digit_mask_ = 0;
+    for (const auto& non_literal : non_literal_) {
+      digit_mask_ |= non_literal->DigitMask();
+    }
+  }
 
   std::shared_ptr<LiteralExpr> literal_;  // May be null.
   std::vector<std::shared_ptr<Expr>> non_literal_;
 };
+
+std::shared_ptr<Expr> AddExpr::DistributeMul(int64_t factor) const {
+  std::shared_ptr<AddExpr> distributed(new AddExpr);
+
+  if (literal_ != nullptr) {
+    distributed->literal_ =
+        std::make_shared<LiteralExpr>(literal_->value() * factor);
+  }
+
+  for (const auto& non_literal : non_literal_) {
+    auto mul = std::make_shared<MulExpr>(non_literal,
+                                         std::make_shared<LiteralExpr>(factor));
+    std::shared_ptr<Expr> mul_simplified = mul->Simplify();
+    if (mul_simplified != nullptr) {
+      const LiteralExpr* mul_simplified_lit = mul_simplified->AsLiteral();
+      if (mul_simplified_lit != nullptr) {
+        const int64_t original_lit = distributed->literal_ == nullptr
+                                         ? 0
+                                         : distributed->literal_->value();
+        const int64_t sum = original_lit + mul_simplified_lit->value();
+        if (sum == 0) {
+          distributed->literal_ = nullptr;
+        } else {
+          distributed->literal_ = std::make_shared<LiteralExpr>(sum);
+        }
+      } else {
+        distributed->non_literal_.emplace_back(std::move(mul_simplified));
+      }
+    } else {
+      distributed->non_literal_.emplace_back(std::move(mul));
+    }
+  }
+  distributed->CalculateDigitMask();
+
+  std::shared_ptr<Expr> distributed_simplified = distributed->Simplify();
+  if (distributed_simplified != nullptr) return distributed_simplified;
+  return distributed;
+}
 
 class DivExpr : public Expr {
  public:
@@ -587,7 +854,19 @@ class DivExpr : public Expr {
       } else if (right_lit->value() == 1) {
         return left_;
       }
+      const MulExpr* left_mul = left_->AsMul();
+      if (left_mul != nullptr) {
+        std::shared_ptr<Expr> divided =
+            left_mul->DivideLiteral(right_lit->value());
+        if (divided != nullptr) return divided;
+      }
+      const AddExpr* left_add = left_->AsAdd();
+      if (left_add != nullptr) {
+        return left_add->DistributeDiv(right_lit->value());
+      }
     }
+
+    const MulExpr* left_mul = left_->AsMul();
 
     const DivExpr* left_div = left_->AsDiv();
     if (left_div != nullptr) {
@@ -623,10 +902,102 @@ class DivExpr : public Expr {
     }
   }
 
+  std::optional<std::pair<int64_t, int64_t>> ValueRange() const override {
+    /*
+    auto left_range = left_->ValueRange();
+    if (!left_range.has_value()) return std::nullopt;
+
+    auto right_range = right_->ValueRange();
+    if (!right_range.has_value()) return std::nullopt;
+    if (right_range->first == 0) ++right_range->first;
+    if (right_range->second == 0) --right_range->second;
+    CHECK(right_range->first <= right_range->second);
+    */
+
+    // TODO... need to be careful of signs.
+    return std::nullopt;
+  }
+
+  absl::flat_hash_set<int64_t> PossibleValuesImpl() const override {
+    absl::flat_hash_set<int64_t> quots;
+    for (int64_t left : left_->PossibleValues()) {
+      for (int64_t right : right_->PossibleValues()) {
+        if (right == 0) continue;
+        quots.insert(left / right);
+      }
+    }
+    return quots;
+  }
+
  private:
   std::shared_ptr<Expr> left_;
   std::shared_ptr<Expr> right_;
 };
+
+std::shared_ptr<Expr> AddExpr::DistributeDiv(int64_t factor) const {
+  std::vector<std::shared_ptr<LiteralExpr>> literal_terms;
+  std::vector<std::shared_ptr<Expr>> divided_terms;
+  std::vector<std::shared_ptr<Expr>> indivisible_terms;
+  if (literal_ != nullptr) {
+    literal_terms.emplace_back(literal_);
+  }
+
+  for (const auto& non_literal : non_literal_) {
+    auto non_literal_mul = non_literal->AsMul();
+    if (non_literal_mul == nullptr) {
+      indivisible_terms.emplace_back(non_literal);
+      continue;
+    }
+    std::shared_ptr<Expr> divided = non_literal_mul->DivideLiteral(factor);
+    if (divided == nullptr) {
+      indivisible_terms.emplace_back(non_literal);
+      continue;
+    }
+    if (divided->AsLiteral() != nullptr) {
+      literal_terms.emplace_back(
+          std::dynamic_pointer_cast<LiteralExpr>(std::move(divided)));
+    } else {
+      divided_terms.emplace_back(divided);
+    }
+  }
+
+  int64_t literal_sum = 0;
+  for (const auto& literal_term : literal_terms) {
+    literal_sum += literal_term->value();
+  }
+
+  std::shared_ptr<LiteralExpr> divided_literal;
+  std::shared_ptr<LiteralExpr> pushdown_literal;
+  if (literal_sum == 0) {
+    // Do nothing.
+  } else if (literal_sum % factor == 0 || indivisible_terms.empty()) {
+    divided_literal = std::make_shared<LiteralExpr>(literal_sum / factor);
+  } else {
+    pushdown_literal = std::make_shared<LiteralExpr>(literal_sum);
+  }
+
+  std::shared_ptr<AddExpr> pushdown_add(new AddExpr);
+  pushdown_add->literal_ = pushdown_literal;
+  pushdown_add->non_literal_ = std::move(indivisible_terms);
+  pushdown_add->CalculateDigitMask();
+  std::shared_ptr<Expr> pushdown_add_simplified = pushdown_add->Simplify();
+  if (pushdown_add_simplified == nullptr) {
+    pushdown_add_simplified = pushdown_add;
+  }
+
+  auto pushdown_div =
+      std::make_shared<DivExpr>(std::move(pushdown_add_simplified),
+                                std::make_shared<LiteralExpr>(factor));
+  divided_terms.emplace_back(std::move(pushdown_div));
+
+  std::shared_ptr<AddExpr> distributed(new AddExpr);
+  distributed->literal_ = std::move(divided_literal);
+  distributed->non_literal_ = std::move(divided_terms);
+  distributed->CalculateDigitMask();
+  std::shared_ptr<Expr> distributed_simplified = distributed->Simplify();
+  if (distributed_simplified != nullptr) return distributed_simplified;
+  return distributed;
+}
 
 class ModExpr : public Expr {
  public:
@@ -665,6 +1036,21 @@ class ModExpr : public Expr {
       } else if (right_lit->value() == 1) {
         return std::make_shared<LiteralExpr>(0);
       }
+
+      const MulExpr* left_mul = left_->AsMul();
+      if (left_mul != nullptr) {
+        const auto& left_mul_literal_factor = left_mul->LiteralFactor();
+        if (left_mul_literal_factor != nullptr) {
+          if (left_mul_literal_factor->value() % right_lit->value() == 0) {
+            return std::make_shared<LiteralExpr>(0);
+          }
+        }
+      }
+
+      const AddExpr* left_add = left_->AsAdd();
+      if (left_add != nullptr) {
+        return left_add->DistributeMod(right_lit->value());
+      }
     }
     return nullptr;
   }
@@ -693,15 +1079,88 @@ class ModExpr : public Expr {
     }
   }
 
+  std::optional<std::pair<int64_t, int64_t>> ValueRange() const override {
+    // TODO: could narrow range if left range is fully within mod.
+    auto right_range = right_->ValueRange();
+    if (!right_range.has_value()) return std::nullopt;
+
+    auto left_range = left_->ValueRange();
+    if (!left_range.has_value() || left_range->second >= right_range->second) {
+      return std::make_pair(int64_t{0}, right_range->second - 1);
+    }
+    return std::make_pair(int64_t{0}, left_range->second);
+  }
+
+  absl::flat_hash_set<int64_t> PossibleValuesImpl() const override {
+    absl::flat_hash_set<int64_t> mods;
+    for (int64_t left : left_->PossibleValues()) {
+      if (left < 0) continue;
+      for (int64_t right : right_->PossibleValues()) {
+        if (right <= 0) continue;
+        mods.insert(left % right);
+      }
+    }
+    return mods;
+  }
+
  private:
   std::shared_ptr<Expr> left_;
   std::shared_ptr<Expr> right_;
 };
 
+std::shared_ptr<Expr> AddExpr::DistributeMod(int64_t mod) const {
+  int64_t lit_sum = 0;
+  if (literal_ != nullptr) {
+    lit_sum += literal_->value() % mod;
+  }
+
+  auto literal_mod = std::make_shared<LiteralExpr>(mod);
+  std::vector<std::shared_ptr<Expr>> non_literal_modded;
+  for (const auto& non_literal : non_literal_) {
+    auto modded = std::make_shared<ModExpr>(non_literal, literal_mod);
+    auto modded_simplified = modded->Simplify();
+    if (modded_simplified != nullptr) {
+      const LiteralExpr* modded_simplified_lit = modded_simplified->AsLiteral();
+      if (modded_simplified_lit != nullptr) {
+        lit_sum += modded_simplified_lit->value();
+      } else {
+        non_literal_modded.emplace_back(std::move(modded_simplified));
+      }
+    } else {
+      non_literal_modded.emplace_back(std::move(modded));
+    }
+  }
+
+  lit_sum %= mod;
+  if (non_literal_modded.empty()) {
+    return std::make_shared<LiteralExpr>(lit_sum);
+  }
+
+  if (lit_sum == 0 && non_literal_modded.size() == 1) {
+    return non_literal_modded.front();
+  }
+
+  std::shared_ptr<LiteralExpr> lit_expr;
+  if (lit_sum != 0) {
+    lit_expr = std::make_shared<LiteralExpr>(lit_sum % mod);
+  }
+
+  std::shared_ptr<AddExpr> new_add(new AddExpr);
+  new_add->literal_ = std::move(lit_expr);
+  new_add->non_literal_ = std::move(non_literal_modded);
+  new_add->CalculateDigitMask();
+  std::shared_ptr<Expr> add_simplified = new_add->Simplify();
+  if (add_simplified == nullptr) add_simplified = new_add;
+
+  return std::make_shared<ModExpr>(std::move(add_simplified),
+                                   std::move(literal_mod));
+}
+
 class EqlExpr : public Expr {
  public:
-  EqlExpr(std::shared_ptr<Expr> left, std::shared_ptr<Expr> right)
-      : left_(std::move(left)), right_(std::move(right)) {
+  EqlExpr(std::shared_ptr<Expr> left, std::shared_ptr<Expr> right,
+          bool invert = false)
+      : left_(std::move(left)), right_(std::move(right)), invert_(invert) {
     digit_mask_ = left_->DigitMask() | right_->DigitMask();
   }
 
@@ -710,22 +1169,82 @@ class EqlExpr : public Expr {
   std::string DebugStr(bool paren = false) const override {
     if (paren) {
       return absl::StrCat("(", left_->DebugStr(true),
-                          " == ", right_->DebugStr(true), ")");
+                          invert_ ? " != " : " == ", right_->DebugStr(true),
+                          ")");
     }
-    return absl::StrCat(left_->DebugStr(true), " == ", right_->DebugStr(true));
+    return absl::StrCat(left_->DebugStr(true),
+                        invert_ ? " != " : " == ", right_->DebugStr(true));
   }
 
   virtual const EqlExpr* AsEql() const override { return this; }
 
   std::shared_ptr<Expr> Simplify() const override {
+    if (!invert_ && left_->TreeEqual(*right_)) {
+      return std::make_shared<LiteralExpr>(1);
+    }
+
+    auto left_vals = left_->PossibleValues();
+    auto right_vals = right_->PossibleValues();
+    int64_t overlap_count = 0;
+    for (const int64_t left_val : left_vals) {
+      overlap_count += right_vals.contains(left_val);
+    }
+    if (!invert_) {
+      if (overlap_count == 0) {
+        return std::make_shared<LiteralExpr>(0);
+      }
+      if (overlap_count == left_vals.size() &&
+          overlap_count == right_vals.size()) {
+        return std::make_shared<LiteralExpr>(1);
+      }
+    } else {
+      if (overlap_count == 0) {
+        return std::make_shared<LiteralExpr>(1);
+      } else if (overlap_count == left_vals.size() &&
+                 overlap_count == right_vals.size()) {
+        return std::make_shared<LiteralExpr>(0);
+      }
+    }
+
     const LiteralExpr* left_lit = left_->AsLiteral();
     const LiteralExpr* right_lit = right_->AsLiteral();
-    if (left_lit != nullptr && right_lit != nullptr) {
-      return std::make_shared<LiteralExpr>(left_lit->value() ==
-                                           right_lit->value());
+    const EqlExpr* left_eql = left_->AsEql();
+    const EqlExpr* right_eql = right_->AsEql();
+    if (left_lit != nullptr) {
+      if (right_lit != nullptr) {
+        if (invert_) {
+          return std::make_shared<LiteralExpr>(left_lit->value() !=
+                                               right_lit->value());
+        }
+        return std::make_shared<LiteralExpr>(left_lit->value() ==
+                                             right_lit->value());
+      }
+      if (right_eql != nullptr) {
+        switch (left_lit->value()) {
+          case 0:
+            return std::make_shared<EqlExpr>(right_eql->left_,
+                                             right_eql->right_,
+                                             invert_ == right_eql->invert_);
+          case 1:
+            return std::make_shared<EqlExpr>(right_eql->left_,
+                                             right_eql->right_,
+                                             invert_ != right_eql->invert_);
+          default:
+            return std::make_shared<LiteralExpr>(invert_ ? 1 : 0);
+        }
+      }
     }
-    if (left_->TreeEqual(*right_)) {
-      return std::make_shared<LiteralExpr>(1);
+    if (right_lit != nullptr && left_eql != nullptr) {
+      switch (right_lit->value()) {
+        case 0:
+          return std::make_shared<EqlExpr>(left_eql->left_, left_eql->right_,
+                                           invert_ == left_eql->invert_);
+        case 1:
+          return std::make_shared<EqlExpr>(left_eql->left_, left_eql->right_,
+                                           invert_ != left_eql->invert_);
+        default:
+          return std::make_shared<LiteralExpr>(invert_ ? 1 : 0);
+      }
     }
     return nullptr;
   }
@@ -733,6 +1252,7 @@ class EqlExpr : public Expr {
   bool TreeEqual(const Expr& other) const override {
     const EqlExpr* other_eql = other.AsEql();
     if (other_eql == nullptr) return false;
+    if (invert_ != other_eql->invert_) return false;
     if (left_->TreeEqual(*other_eql->left_) &&
         right_->TreeEqual(*other_eql->right_)) {
       return true;
@@ -745,7 +1265,8 @@ class EqlExpr : public Expr {
   }
 
   int64_t EvalImpl(const Num& input) const override {
-    return left_->Eval(input) == right_->Eval(input);
+    return invert_ ? (left_->Eval(input) != right_->Eval(input))
+                   : left_->Eval(input) == right_->Eval(input);
   }
 
   void CollectChildren(
@@ -758,9 +1279,29 @@ class EqlExpr : public Expr {
     }
   }
 
+  std::optional<std::pair<int64_t, int64_t>> ValueRange() const override {
+    return std::pair<int64_t, int64_t>(0, 1);
+  }
+
+  absl::flat_hash_set<int64_t> PossibleValuesImpl() const override {
+    absl::flat_hash_set<int64_t> results;
+    for (int64_t left : left_->PossibleValues()) {
+      for (int64_t right : right_->PossibleValues()) {
+        if (left == right) {
+          results.insert(invert_ ? 0 : 1);
+        } else {
+          results.insert(invert_ ? 1 : 0);
+        }
+        if (results.size() == 2) return results;
+      }
+    }
+    return results;
+  }
+
  private:
   std::shared_ptr<Expr> left_;
   std::shared_ptr<Expr> right_;
+  bool invert_ = false;
 };
 
 class MachineState {
@@ -779,7 +1320,9 @@ class MachineState {
     std::shared_ptr<Expr>& reg_0 = Register(inst[4]);
 
     if (mnemonic == "inp") {
-      reg_0 = std::make_shared<InputExpr>(input_counter_++);
+      auto input_expr = std::make_shared<InputExpr>(inputs_.size());
+      inputs_.emplace_back(input_expr);
+      reg_0 = std::move(input_expr);
       return;
     }
 
@@ -826,12 +1369,72 @@ class MachineState {
 
   void RunProgram(const std::vector<std::string>& program) {
     for (int pc = 0; pc < program.size(); ++pc) {
-      std::cout << "PC=" << pc << " : " << program[pc] << "\n";
       RunInstruction(program[pc]);
     }
+    std::cout << "Program evaluated\n";
+  }
+
+  int64_t SearchProgram() {
+    absl::flat_hash_set<std::shared_ptr<Expr>> collected{z_};
+    z_->CollectChildren(collected);
+
+    std::map<int, int> deps_distro;
+    for (const auto& expr : collected) {
+      ++deps_distro[std::popcount(expr->DigitMask())];
+    }
+    for (const auto [deps, count] : deps_distro) {
+      std::cout << deps << " dependencies -> " << count << " nodes\n";
+    }
+
+    std::vector<std::vector<std::shared_ptr<Expr>>> input_dependents(
+        inputs_.size());
+    for (int i = 0; i < inputs_.size(); ++i) {
+      for (const auto& expr : collected) {
+        if ((expr->DigitMask() & (1 << i)) != 0) {
+          input_dependents[i].emplace_back(expr);
+        }
+      }
+      std::cout << input_dependents[i].size() << " nodes depend on input " << i
+                << "\n";
+    }
+    CHECK(SearchProgramImpl(input_dependents));
+
+    int64_t result = 0;
+    for (const auto& input : inputs_) {
+      result = result * 10 + input->FinalizeTentative();
+    }
+    return result;
   }
 
  private:
+  bool SearchProgramImpl(
+      const std::vector<std::vector<std::shared_ptr<Expr>>>& input_dependents,
+      int pos = 0, int64_t selected = 0) {
+    CHECK(pos < inputs_.size());
+    for (int tentative = 1; tentative <= 9; ++tentative) {
+      for (const auto& dependent : input_dependents[pos]) {
+        dependent->PurgePossibleValuesMemo();
+      }
+      inputs_[pos]->SetTentativeValue(tentative);
+      const auto& possible = z_->PossibleValues();
+      if (pos < 5) {
+        for (int space = 0; space < pos; ++space) {
+          std::cout << "  ";
+        }
+        std::cout << "input_" << pos << " = " << tentative << " -> "
+                  << possible.size() << "\n";
+      }
+      if (!possible.contains(0)) continue;
+      if (possible.size() == 1) return true;
+      if (SearchProgramImpl(input_dependents, pos + 1)) return true;
+    }
+    for (const auto& dependent : input_dependents[pos]) {
+      dependent->PurgePossibleValuesMemo();
+    }
+    inputs_[pos]->SetTentativeValue(std::nullopt);
+    return false;
+  }
+
   std::shared_ptr<Expr>& Register(char c) {
     switch (c) {
       case 'w':
@@ -851,7 +1454,7 @@ class MachineState {
   std::shared_ptr<Expr> x_ = std::make_shared<LiteralExpr>(0);
   std::shared_ptr<Expr> y_ = std::make_shared<LiteralExpr>(0);
   std::shared_ptr<Expr> z_ = std::make_shared<LiteralExpr>(0);
-  int input_counter_ = 0;
+  std::vector<std::shared_ptr<InputExpr>> inputs_;
 };
 
 Num FindLargestModelNum(const std::vector<std::string>& program) {
@@ -878,11 +1481,12 @@ int main(int argc, char** argv) {
 
   MachineState machine;
   machine.RunProgram(program);
-  std::cout << "w = " << machine.w().DebugStr() << "\n\n";
-  std::cout << "x = " << machine.x().DebugStr() << "\n\n";
-  std::cout << "y = " << machine.y().DebugStr() << "\n\n";
+  std::cout << machine.SearchProgram() << "\n";
+  //  std::cout << "w = " << machine.w().DebugStr() << "\n\n";
+  //  std::cout << "x = " << machine.x().DebugStr() << "\n\n";
+  //  std::cout << "y = " << machine.y().DebugStr() << "\n\n";
   //  std::cout << "z = " << machine.z().DebugStr() << "\n\n";
 
-//  std::cout << FindLargestModelNum(program) << "\n";
+  //  std::cout << FindLargestModelNum(program) << "\n";
   return 0;
 }
